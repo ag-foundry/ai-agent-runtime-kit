@@ -1,0 +1,3 @@
+cases:
+  - id: empty_topic_memory
+    rule: "When topic memory is weak, output should say signal is limited instead of pretending strong local context exists."

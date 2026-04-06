@@ -1,0 +1,16 @@
+{
+  "format": "core-context-router-decision-trace-v1",
+  "required_fields": [
+    "task_request",
+    "caller_surface",
+    "selected_mode",
+    "confidence",
+    "confidence_reason",
+    "mode_scores",
+    "deterministic_guardrails",
+    "primary_target",
+    "compare_targets",
+    "warning_signals",
+    "fallback_used"
+  ]
+}

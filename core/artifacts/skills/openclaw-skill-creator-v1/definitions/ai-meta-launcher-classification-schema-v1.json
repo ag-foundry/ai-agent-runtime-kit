@@ -1,0 +1,146 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "intent_class",
+    "confidence",
+    "substantiality",
+    "complexity",
+    "depth",
+    "risk_level",
+    "scope_class",
+    "topic_candidate",
+    "topic_name_candidate",
+    "case_id_candidate",
+    "run_reference_hint",
+    "operation_mode",
+    "research_mode",
+    "needs_clarification",
+    "clarification_reason",
+    "routing_rationale"
+  ],
+  "properties": {
+    "intent_class": {
+      "type": "string",
+      "enum": [
+        "historical_review",
+        "current_run_review",
+        "readiness_review",
+        "compare_runs",
+        "clean_rerun",
+        "canonical_managed_eval",
+        "promotion_preview",
+        "topic_bootstrap",
+        "topic_migration",
+        "research_request",
+        "current_state_lookup",
+        "general_project_analysis"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "substantiality": {
+      "type": "string",
+      "enum": [
+        "lightweight",
+        "substantial"
+      ]
+    },
+    "complexity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "depth": {
+      "type": "string",
+      "enum": [
+        "shallow",
+        "medium",
+        "deep"
+      ]
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "high"
+      ]
+    },
+    "scope_class": {
+      "type": "string",
+      "enum": [
+        "single_topic",
+        "cross_topic",
+        "global_server"
+      ]
+    },
+    "topic_candidate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "topic_name_candidate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "case_id_candidate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run_reference_hint": {
+      "type": "string",
+      "enum": [
+        "latest",
+        "previous",
+        "current",
+        "historical",
+        "explicit",
+        "none"
+      ]
+    },
+    "operation_mode": {
+      "type": "string",
+      "enum": [
+        "read_only",
+        "workspace_write"
+      ]
+    },
+    "research_mode": {
+      "type": "string",
+      "enum": [
+        "none",
+        "quick",
+        "deep"
+      ]
+    },
+    "needs_clarification": {
+      "type": "boolean"
+    },
+    "clarification_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "routing_rationale": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

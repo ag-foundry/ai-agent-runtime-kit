@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="/home/agent/agents/core/runtime/retrieval-execution"
+DEPLOY_SCRIPT="${ROOT}/deploy-retrieval-execution-runtime.sh"
+PUBLISH_RUNTIME_SCRIPT="${ROOT}/publish-retrieval-execution-runtime.sh"
+PUBLISH_CHECKPOINT_SCRIPT="${ROOT}/publish-retrieval-execution-checkpoint.sh"
+HYGIENE_AUDIT_SCRIPT="${ROOT}/audit-retrieval-execution-artifact-hygiene.sh"
+RETENTION_SCRIPT="${ROOT}/cleanup-retrieval-execution-artifact-retention.sh"
+FROZEN_SCRUB_SCRIPT="${ROOT}/scrub-retrieval-execution-frozen-artifacts.sh"
+
+cmd="${1:-status}"
+shift || true
+
+show_status() {
+  echo "ADMIN_ENTRYPOINT=/home/agent/bin/retrieval-execution-admin"
+  echo "REPO_ADMIN_SOURCE=${ROOT}/retrieval-execution-admin"
+  echo "ROOT=${ROOT}"
+  echo "DEPLOY_SCRIPT=${DEPLOY_SCRIPT}"
+  echo "PUBLISH_RUNTIME_SCRIPT=${PUBLISH_RUNTIME_SCRIPT}"
+  echo "PUBLISH_CHECKPOINT_SCRIPT=${PUBLISH_CHECKPOINT_SCRIPT}"
+  echo "HYGIENE_AUDIT_SCRIPT=${HYGIENE_AUDIT_SCRIPT}"
+  echo "RETENTION_SCRIPT=${RETENTION_SCRIPT}"
+  echo "FROZEN_SCRUB_SCRIPT=${FROZEN_SCRUB_SCRIPT}"
+  echo "PUBLIC_RUN=/home/agent/bin/run-retrieval-execution"
+  echo "AVAILABLE_COMMANDS=status deploy runtime checkpoint run-status run regress full-regress hygiene-audit retention-plan retention-apply frozen-scrub-plan frozen-scrub-apply"
+}
+
+case "${cmd}" in
+  status)
+    show_status
+    ;;
+  deploy)
+    "${DEPLOY_SCRIPT}" --full-smoke "$@"
+    ;;
+  runtime)
+    "${PUBLISH_RUNTIME_SCRIPT}" "$@"
+    ;;
+  checkpoint)
+    "${PUBLISH_CHECKPOINT_SCRIPT}" "$@"
+    ;;
+  run-status)
+    /home/agent/bin/run-retrieval-execution status "$@"
+    ;;
+  run)
+    /home/agent/bin/run-retrieval-execution "$@"
+    ;;
+  regress)
+    /home/agent/bin/run-retrieval-execution regress --topic core "$@"
+    ;;
+  full-regress)
+    /home/agent/bin/run-retrieval-execution full-regress --topic core "$@"
+    ;;
+  hygiene-audit)
+    "${HYGIENE_AUDIT_SCRIPT}" "$@"
+    ;;
+  retention-plan)
+    "${RETENTION_SCRIPT}" plan "$@"
+    ;;
+  retention-apply)
+    "${RETENTION_SCRIPT}" apply "$@"
+    ;;
+  frozen-scrub-plan)
+    "${FROZEN_SCRUB_SCRIPT}" plan "$@"
+    ;;
+  frozen-scrub-apply)
+    "${FROZEN_SCRUB_SCRIPT}" apply "$@"
+    ;;
+  *)
+    echo "ERROR: unknown command: ${cmd}" >&2
+    echo "Use: status | deploy | runtime | checkpoint | run-status | run | regress | full-regress | hygiene-audit | retention-plan | retention-apply | frozen-scrub-plan | frozen-scrub-apply" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,719 @@
+{
+  "version": "openclaw-global-managed-policy-registry-v1",
+  "managed_standard": "global-managed-canonical-v1",
+  "default_launcher_entrypoint": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+  "default_workflow_class": "canonical_managed_eval",
+  "memory_fabric_definition": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/definitions/global-managed-memory-fabric-v1.json",
+  "meta_launcher_classification_schema": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/definitions/ai-meta-launcher-classification-schema-v1.json",
+  "canonical_managed_path": [
+    "generate_review_pack.py",
+    "summaries/pack-selection-trace.json",
+    "summaries/pack-selection-manifest.json",
+    "summaries/trial-plan.json",
+    "run_skill_trial_matrix.py",
+    "completed review files",
+    "evaluate_readiness.py",
+    "promotion-preview or deliberate adoption/promotion"
+  ],
+  "workflow_classes": {
+    "canonical_managed_eval": {
+      "auto_default": true,
+      "description": "Default managed eval path for pack assembly, matrix execution, and readiness.",
+      "trace_scope": "run_root",
+      "routed_components": [
+        "run_skill_trial_matrix.py",
+        "evaluate_readiness.py"
+      ]
+    },
+    "historical_review": {
+      "auto_default": false,
+      "description": "Managed historical or checkpoint review path over an existing run root.",
+      "trace_scope": "run_root",
+      "routed_components": [
+        "review_current_run.py"
+      ]
+    },
+    "current_run_review": {
+      "auto_default": false,
+      "description": "Managed current-run review path that keeps the selected run primary and history supporting-only.",
+      "trace_scope": "run_root",
+      "routed_components": [
+        "review_current_run.py"
+      ]
+    },
+    "readiness_review": {
+      "auto_default": false,
+      "description": "Managed readiness-only path over one selected canonical run root without re-running pack assembly or matrix execution.",
+      "trace_scope": "run_root",
+      "routed_components": [
+        "evaluate_readiness.py"
+      ]
+    },
+    "compare_runs": {
+      "auto_default": false,
+      "description": "Managed compare path over one primary run root plus one or more explicit compare targets.",
+      "trace_scope": "run_root",
+      "routed_components": [
+        "review_current_run.py"
+      ]
+    },
+    "clean_rerun": {
+      "auto_default": false,
+      "description": "Managed contamination-sensitive case rerun path over one explicit case and one explicit profile.",
+      "trace_scope": "run_root",
+      "routed_components": [
+        "run_local_agent_eval.py"
+      ]
+    },
+    "promotion_preview": {
+      "auto_default": false,
+      "description": "Promotion or adoption preview path that keeps accepted-case output outside the live registry.",
+      "trace_scope": "run_root",
+      "routed_components": []
+    },
+    "topic_bootstrap": {
+      "auto_default": false,
+      "description": "Bootstrap a new topic or project root with managed default hooks and launcher references.",
+      "trace_scope": "topic_root",
+      "routed_components": []
+    },
+    "topic_migration": {
+      "auto_default": false,
+      "description": "Controlled migration of an existing topic root onto managed-default hooks without breaking its existing local material.",
+      "trace_scope": "topic_root",
+      "routed_components": []
+    }
+  },
+  "entrypoints": [
+    {
+      "name": "launch_managed_workflow.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "classification": "global_default_launcher",
+      "default_for_workflow_classes": [
+        "canonical_managed_eval",
+        "historical_review",
+        "current_run_review",
+        "readiness_review",
+        "compare_runs",
+        "clean_rerun",
+        "promotion_preview",
+        "topic_bootstrap",
+        "topic_migration"
+      ],
+      "compatibility_only": false,
+      "requires_override_reason": false
+    },
+    {
+      "name": "generate_review_pack.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/generate_review_pack.py",
+      "classification": "canonical_component",
+      "default_for_workflow_classes": [],
+      "compatibility_only": false,
+      "requires_override_reason": false
+    },
+    {
+      "name": "run_skill_trial_matrix.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-eval-harness-v1/scripts/run_skill_trial_matrix.py",
+      "classification": "canonical_component",
+      "default_for_workflow_classes": [],
+      "compatibility_only": false,
+      "requires_override_reason": false
+    },
+    {
+      "name": "evaluate_readiness.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/evaluate_readiness.py",
+      "classification": "canonical_component",
+      "default_for_workflow_classes": [
+        "readiness_review"
+      ],
+      "compatibility_only": false,
+      "requires_override_reason": false
+    },
+    {
+      "name": "review_current_run.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-eval-harness-v1/scripts/review_current_run.py",
+      "classification": "canonical_component",
+      "default_for_workflow_classes": [
+        "historical_review",
+        "current_run_review",
+        "compare_runs"
+      ],
+      "compatibility_only": false,
+      "requires_override_reason": false
+    },
+    {
+      "name": "promote_accepted_case_set.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/promote_accepted_case_set.py",
+      "classification": "canonical_component",
+      "default_for_workflow_classes": [],
+      "compatibility_only": false,
+      "requires_override_reason": false
+    },
+    {
+      "name": "run_managed_skills_matrix.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-eval-harness-v1/scripts/run_managed_skills_matrix.py",
+      "classification": "compatibility_entrypoint",
+      "default_for_workflow_classes": [],
+      "compatibility_only": true,
+      "requires_override_reason": true
+    },
+    {
+      "name": "run_local_agent_eval.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-eval-harness-v1/scripts/run_local_agent_eval.py",
+      "classification": "case_runner_component",
+      "default_for_workflow_classes": [
+        "clean_rerun"
+      ],
+      "compatibility_only": false,
+      "requires_override_reason": false
+    }
+  ],
+  "override_modes": [
+    {
+      "mode": "legacy_runner",
+      "entrypoint": "/home/agent/agents/core/artifacts/skills/openclaw-skill-eval-harness-v1/scripts/run_managed_skills_matrix.py",
+      "requires_reason": true,
+      "not_default": true
+    },
+    {
+      "mode": "component_direct",
+      "entrypoint": "component script invoked without launcher",
+      "requires_reason": true,
+      "not_default": true
+    }
+  ],
+  "default_enforcement": {
+    "managed_workflows_must_start_at_launcher": true,
+    "component_direct_is_default": false,
+    "compatibility_paths_are_exception_modes": true,
+    "legacy_paths_require_explicit_reason_or_trace_marker": true,
+    "human_natural_language_entrypoint": "/home/agent/bin/agent-exec",
+    "compatibility_positional_topic_form": "agent-exec <topic> <prompt...>",
+    "agent_topic_alias_mode": "compatibility_bootstrap_alias",
+    "user_must_choose_workflow_class_manually": false,
+    "meta_launcher_must_leave_trace": true
+  },
+  "accepted_caveats": [
+    {
+      "topic": "runtime-governance-remediation-guard",
+      "artifact": "runtime-governance-remediation-guard-validation-proof-gate",
+      "status": "accepted_weak_boundary_residue",
+      "blocking": false,
+      "note": "A one-case readiness result may still say not yet ready under unchanged single-case policy without reopening line-level acceptance."
+    },
+    {
+      "topic": "global-managed-standard",
+      "artifact": "graph_memory_auth_dependency",
+      "status": "accepted_best_effort_helper_connector",
+      "blocking": false,
+      "note": "The AI meta-launcher now calls `graphmem-recall` directly when local Neo4j credentials are available. Missing local auth degrades this memory source to a traceable unavailable state instead of silent failure."
+    },
+    {
+      "topic": "global-managed-standard",
+      "artifact": "vector_memory_connector",
+      "status": "accepted_helper_memory_runtime_gap",
+      "blocking": false,
+      "note": "The launcher records vector/semantic memory as a declared helper source, but no local callable vector connector is currently exposed to the launcher runtime."
+    },
+    {
+      "topic": "codex-frontdoor-binding",
+      "artifact": "codex_chat_platform_pre_exec_hook_gap",
+      "status": "accepted_platform_limit",
+      "blocking": false,
+      "note": "The current Codex platform does not expose a hard pre-execution interception hook for every chat turn; the strongest real binding is the live AGENTS contract plus the codex-frontdoor-preflight wrapper and launcher trace."
+    },
+    {
+      "topic": "codex-frontdoor-binding",
+      "artifact": "dynamic_mcp_attach_gap",
+      "status": "accepted_platform_limit",
+      "blocking": false,
+      "note": "The live Codex session can use configured MCP/tool surfaces, but cannot dynamically attach arbitrary new MCP servers on the fly; unavailable desired MCPs must be traced explicitly instead of implied."
+    }
+  ],
+  "do_not_reopen": [
+    "contamination from old derived artifacts on disputed reruns",
+    "repo-root leakage in case-facing execution",
+    "trustworthiness of enforced projection",
+    "prose-only upstream pack selection on the canonical path",
+    "the claim that one-case readiness not yet ready overturns accepted line status",
+    "legacy or ad hoc assembly as the primary path for accepted managed lines",
+    "the claim that users should keep choosing workflow classes manually once the global AI meta-launcher exists"
+  ],
+  "new_topic_bootstrap": {
+    "created_files": [
+      "AGENTS.md",
+      "README.md",
+      "managed-defaults.json"
+    ],
+    "override_requires_reason": true,
+    "default_workflow_class": "canonical_managed_eval"
+  },
+  "topic_migration": {
+    "writes_managed_defaults": true,
+    "upserts_hooks_to_current_contract": true,
+    "appends_hooks_when_missing": true,
+    "preserve_existing_topic_material": true
+  },
+  "default_server_entrypoint": "/home/agent/bin/agent-exec",
+  "meta_launcher_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py",
+  "meta_launcher_policy": {
+    "default_human_entrypoint": "/home/agent/bin/agent-exec",
+    "codex_chat_preflight_entrypoint": "/home/agent/bin/codex-frontdoor-preflight",
+    "natural_request_is_default": true,
+    "compatibility_aliases": [
+      "/home/agent/bin/agent-topic",
+      "agent-exec <topic> <prompt...>"
+    ],
+    "compatibility_aliases_are_default": false,
+    "backend_launcher": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py"
+  },
+  "codex_frontdoor_binding": {
+    "status": "active",
+    "frontdoor_contract_format": "openclaw-codex-frontdoor-contract-v1",
+    "codex_chat_entry_surface": "Codex chat right pane / Codex environment",
+    "codex_chat_preflight_entrypoint": "/home/agent/bin/codex-frontdoor-preflight",
+    "binding_enforced_via": [
+      "/home/agent/.codex/AGENTS.md",
+      "/home/agent/agents/_shared/AGENTS.md",
+      "topic AGENTS.md",
+      "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py"
+    ],
+    "substantial_task_rule": "Before substantial Codex-chat work, run the preflight-only meta-launcher contract and use its routing, memory, tool, and skill decisions.",
+    "substantial_task_examples": [
+      "code changes",
+      "multi-step analysis",
+      "historical/current review",
+      "compare",
+      "clean rerun",
+      "research",
+      "bootstrap",
+      "migration",
+      "server/router/receiver/vpn operational work"
+    ],
+    "casual_dialog_stays_local": true,
+    "codex_chat_default_execution_for_open_ended_work": "preflight_then_local_execution_in_current_chat",
+    "structured_workflows_delegate_to_backend_after_preflight": true,
+    "platform_limit_no_hard_pre_exec_hook": true
+  },
+  "routing_dimensions": {
+    "substantiality": [
+      "lightweight",
+      "substantial"
+    ],
+    "complexity": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "depth": [
+      "shallow",
+      "medium",
+      "deep"
+    ],
+    "risk_level": [
+      "low",
+      "high"
+    ],
+    "scope_class": [
+      "single_topic",
+      "cross_topic",
+      "global_server"
+    ]
+  },
+  "tool_families": {
+    "shell_exec": {
+      "description": "Local shell execution and file/runtime command surface.",
+      "enabled": true,
+      "execution_surfaces": [
+        "human_cli",
+        "codex_chat",
+        "automation"
+      ],
+      "high_impact": true,
+      "source": "codex native exec tool and local subprocess runtime"
+    },
+    "web_search": {
+      "description": "Codex-native web search for current docs, sources, and live lookup.",
+      "enabled": true,
+      "execution_surfaces": [
+        "codex_chat"
+      ],
+      "high_impact": false,
+      "source": "codex native web tool"
+    },
+    "github_connector": {
+      "description": "GitHub app/connector for repository, PR, issue, and comment workflows.",
+      "enabled": true,
+      "execution_surfaces": [
+        "codex_chat"
+      ],
+      "high_impact": true,
+      "source": "enabled GitHub plugin"
+    },
+    "graphmem_readonly": {
+      "description": "Configured graph memory MCP helper for bounded graph recall.",
+      "enabled": true,
+      "execution_surfaces": [
+        "codex_chat"
+      ],
+      "high_impact": false,
+      "source": "configured mcp server graphmem-readonly"
+    },
+    "local_memory_runtime": {
+      "description": "Local memory snapshot/runtime for topic-scoped memory lift.",
+      "enabled": true,
+      "execution_surfaces": [
+        "human_cli",
+        "codex_chat",
+        "automation"
+      ],
+      "high_impact": false,
+      "source": "memory runtime"
+    },
+    "local_current_state_bridge": {
+      "description": "Local current-state retrieval bridge for authoritative current status lookups.",
+      "enabled": true,
+      "execution_surfaces": [
+        "human_cli",
+        "codex_chat",
+        "automation"
+      ],
+      "high_impact": false,
+      "source": "openclaw-retrieval-bridge"
+    },
+    "local_research_runtime": {
+      "description": "Local project research runner and research-brain-backed bounded research contour.",
+      "enabled": true,
+      "execution_surfaces": [
+        "human_cli",
+        "codex_chat",
+        "automation"
+      ],
+      "high_impact": false,
+      "source": "project-research-run"
+    },
+    "mcp_registry_audit": {
+      "description": "Audit surface for configured MCP/tool inventory and gap reporting.",
+      "enabled": true,
+      "execution_surfaces": [
+        "human_cli",
+        "codex_chat",
+        "automation"
+      ],
+      "high_impact": false,
+      "source": "/home/agent/.codex/config.toml plus Codex MCP discovery surfaces"
+    },
+    "vector_memory_connector": {
+      "description": "Future vector/semantic memory connector surface.",
+      "enabled": false,
+      "execution_surfaces": [
+        "human_cli",
+        "codex_chat",
+        "automation"
+      ],
+      "high_impact": false,
+      "source": "accepted caveat",
+      "unavailable_reason": "no callable vector memory connector is exposed in the current platform/runtime"
+    },
+    "dynamic_mcp_attach": {
+      "description": "Runtime attachment of arbitrary new MCP servers from inside the current Codex session.",
+      "enabled": false,
+      "execution_surfaces": [
+        "codex_chat"
+      ],
+      "high_impact": false,
+      "source": "platform limitation",
+      "unavailable_reason": "the current platform exposes configured MCP/tool surfaces only; arbitrary dynamic attach is not available from the live Codex chat"
+    }
+  },
+  "intent_tool_policies": {
+    "historical_review": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly"
+      ]
+    },
+    "current_run_review": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly"
+      ]
+    },
+    "readiness_review": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly"
+      ]
+    },
+    "compare_runs": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly"
+      ]
+    },
+    "clean_rerun": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "mcp_registry_audit"
+      ]
+    },
+    "canonical_managed_eval": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly",
+        "mcp_registry_audit"
+      ]
+    },
+    "promotion_preview": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly"
+      ]
+    },
+    "topic_bootstrap": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "mcp_registry_audit"
+      ]
+    },
+    "topic_migration": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "mcp_registry_audit"
+      ]
+    },
+    "research_request": {
+      "primary": [
+        "local_research_runtime",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "web_search",
+        "graphmem_readonly",
+        "mcp_registry_audit"
+      ]
+    },
+    "current_state_lookup": {
+      "primary": [
+        "local_current_state_bridge",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly",
+        "mcp_registry_audit"
+      ]
+    },
+    "general_project_analysis": {
+      "primary": [
+        "shell_exec",
+        "local_memory_runtime"
+      ],
+      "optional": [
+        "graphmem_readonly",
+        "web_search",
+        "mcp_registry_audit"
+      ]
+    }
+  },
+  "skill_routing_policy": {
+    "decision_values": [
+      "no_skill",
+      "temporary_skill",
+      "durable_skill_update",
+      "durable_skill_create"
+    ],
+    "temporary_signals": [
+      "temporary skill",
+      "temp skill",
+      "ephemeral skill",
+      "временный skill"
+    ],
+    "durable_create_signals": [
+      "create skill",
+      "new skill",
+      "skill-creator",
+      "durable skill",
+      "reusable workflow",
+      "повторяем",
+      "многоразов"
+    ],
+    "durable_update_signals": [
+      "update skill",
+      "refresh skill",
+      "existing skill",
+      "обнови skill",
+      "доработай skill"
+    ],
+    "reusable_pattern_signals": [
+      "workflow",
+      "repeat",
+      "automation",
+      "playbook",
+      "standardize",
+      "policy",
+      "маршрут",
+      "контур"
+    ],
+    "default_rule": "Prefer no_skill for routine managed requests; escalate to temporary_skill for complex one-off multi-step work; use durable skill create/update only when reuse signals are explicit or strong."
+  },
+  "meta_intent_classes": {
+    "current_state_lookup": {
+      "default_backend": "/home/agent/bin/openclaw-retrieval-bridge",
+      "default_backend_mode": "current-state",
+      "description": "Resolve natural-language current-state or authoritative-status requests through the retrieval bridge.",
+      "requires_explicit_target": false
+    },
+    "research_request": {
+      "default_backend": "/home/agent/bin/project-research-run",
+      "default_backend_mode": "auto",
+      "description": "Route research, architecture-understanding, and next-step synthesis requests through the bounded research runner.",
+      "requires_explicit_target": false
+    },
+    "general_project_analysis": {
+      "default_backend": "Codex chat local execution after codex-frontdoor preflight, or agent-exec topic compatibility execution outside Codex chat",
+      "default_backend_mode": "codex_chat_local_or_topic_compatibility_execution",
+      "description": "Fallback path for open-ended analysis when no narrower managed workflow is a better fit; Codex chat stays in the current conversation after preflight instead of silently spawning a parallel mode.",
+      "requires_explicit_target": false
+    },
+    "historical_review": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "historical_review",
+      "description": "Managed review path over a selected or inferred historical run root.",
+      "requires_explicit_target": false
+    },
+    "current_run_review": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "current_run_review",
+      "description": "Managed review path over the latest or explicit current run root.",
+      "requires_explicit_target": false
+    },
+    "readiness_review": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "readiness_review",
+      "description": "Managed readiness-only path over an explicit or inferred canonical run root.",
+      "requires_explicit_target": false
+    },
+    "compare_runs": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "compare_runs",
+      "description": "Managed compare path between one primary run and one or more compare targets.",
+      "requires_explicit_target": false
+    },
+    "clean_rerun": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "clean_rerun",
+      "description": "Contamination-sensitive case rerun path with enforced projection.",
+      "requires_explicit_target": true
+    },
+    "canonical_managed_eval": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "canonical_managed_eval",
+      "description": "Canonical managed eval path for broader eval / review-pack execution.",
+      "requires_explicit_target": true
+    },
+    "promotion_preview": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "promotion_preview",
+      "description": "Promotion or adoption preview path over an explicit or inferred ready run root.",
+      "requires_explicit_target": false
+    },
+    "topic_bootstrap": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "topic_bootstrap",
+      "description": "Create a new topic root with managed defaults, structure, and hooks.",
+      "requires_explicit_target": true
+    },
+    "topic_migration": {
+      "default_backend": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "default_backend_mode": "topic_migration",
+      "description": "Migrate an existing topic root onto managed defaults and launcher awareness.",
+      "requires_explicit_target": true
+    }
+  },
+  "server_entrypoints": [
+    {
+      "name": "agent-exec",
+      "path": "/home/agent/bin/agent-exec",
+      "classification": "global_ai_meta_launcher",
+      "default_for_human_requests": true,
+      "compatibility_only": false
+    },
+    {
+      "name": "agent-topic",
+      "path": "/home/agent/bin/agent-topic",
+      "classification": "compatibility_topic_bootstrap_alias",
+      "default_for_human_requests": false,
+      "compatibility_only": true
+    },
+    {
+      "name": "codex-frontdoor-preflight",
+      "path": "/home/agent/bin/codex-frontdoor-preflight",
+      "classification": "codex_chat_binding_helper",
+      "default_for_human_requests": false,
+      "compatibility_only": false
+    },
+    {
+      "name": "launch_managed_workflow.py",
+      "path": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+      "classification": "managed_backend_launcher",
+      "default_for_human_requests": false,
+      "compatibility_only": false
+    },
+    {
+      "name": "project-research-run",
+      "path": "/home/agent/bin/project-research-run",
+      "classification": "research_backend",
+      "default_for_human_requests": false,
+      "compatibility_only": false
+    },
+    {
+      "name": "run-retrieval-execution",
+      "path": "/home/agent/bin/run-retrieval-execution",
+      "classification": "retrieval_backend",
+      "default_for_human_requests": false,
+      "compatibility_only": false
+    },
+    {
+      "name": "openclaw-retrieval-bridge",
+      "path": "/home/agent/bin/openclaw-retrieval-bridge",
+      "classification": "current_state_bridge",
+      "default_for_human_requests": false,
+      "compatibility_only": false
+    }
+  ],
+  "research_routing": {
+    "status": "launcher_routable_memory_aware",
+    "default_backend": "/home/agent/bin/project-research-run",
+    "supporting_brain_state": "/home/agent/agents/core/artifacts/research-brain/skill-creator-history-v2/research-brain-state-v2.json",
+    "supporting_brain_rules": "/home/agent/agents/core/runtime/research-brain-v2/research_brain_rules_v2.json",
+    "current_state_bridge": "/home/agent/bin/openclaw-retrieval-bridge",
+    "note": "Research internals remain separate, but research requests are now routable, traceable, and memory-aware through the global AI meta-launcher."
+  }
+}

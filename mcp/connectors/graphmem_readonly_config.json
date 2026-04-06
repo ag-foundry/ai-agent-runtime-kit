@@ -1,0 +1,21 @@
+{
+  "name": "graphmem-readonly",
+  "transport": "stdio",
+  "protocolVersion": "2025-03-26",
+  "command": "python3",
+  "args": [
+    "/home/agent/agents/mcp/connectors/graphmem_readonly_server.py"
+  ],
+  "tools": [
+    "graph_stats",
+    "graph_recall"
+  ],
+  "constraints": [
+    "read-only only",
+    "no raw arbitrary Cypher",
+    "no graphmem init",
+    "no graphmem ingest",
+    "ephemeral Neo4j auth discovery only",
+    "topic-local surface only"
+  ]
+}

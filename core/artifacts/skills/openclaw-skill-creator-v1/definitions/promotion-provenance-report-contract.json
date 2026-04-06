@@ -1,0 +1,25 @@
+{
+  "version": "openclaw-promotion-provenance-v1",
+  "required_top_level": [
+    "format",
+    "case_set_id",
+    "skill_name",
+    "registry_manifest_path",
+    "source_run_root",
+    "path_level_contexts",
+    "required_file_anchors",
+    "supporting_file_anchors"
+  ],
+  "required_path_context_keys": [
+    "context_id",
+    "role",
+    "path",
+    "justification"
+  ],
+  "required_file_anchor_keys": [
+    "anchor_id",
+    "role",
+    "path",
+    "justification"
+  ]
+}

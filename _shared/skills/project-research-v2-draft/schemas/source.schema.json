@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "project_research_source",
+  "type": "object",
+  "required": [
+    "kind",
+    "title",
+    "why_relevant",
+    "confidence"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "why_relevant": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "source_bucket": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

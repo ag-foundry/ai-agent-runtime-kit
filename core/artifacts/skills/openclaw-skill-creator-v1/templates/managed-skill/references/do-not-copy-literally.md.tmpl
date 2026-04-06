@@ -1,0 +1,16 @@
+# Do Not Copy Literally
+
+Skill: `__SKILL_NAME__`
+
+The following patterns may be useful as inspiration, but they are not OpenClaw baseline rules and must not be copied literally without adaptation:
+
+- Anthropic-specific packaging or managed-skill assumptions
+- Codex-specific `agents/openai.yaml` interface metadata
+- permissive validator behavior treated as normative schema
+- readiness claims inferred from packaging, scaffolding, or one green run
+
+Adapt them only after checking:
+
+- current OpenClaw runtime constraints
+- current bridge and workspace behavior
+- current eval-harness and readiness rules

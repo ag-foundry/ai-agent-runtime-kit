@@ -1,0 +1,29 @@
+{
+  "version": "openclaw-pack-selection-manifest-v1",
+  "required_top_level": [
+    "format",
+    "run_root",
+    "skill_name",
+    "pack_mode",
+    "plan_source",
+    "selection_confidence",
+    "selection_policy_path",
+    "selection_trace_path",
+    "candidate_case_count",
+    "selected_case_count",
+    "selected_cases"
+  ],
+  "required_selected_case_keys": [
+    "case_id",
+    "case_path",
+    "selection_class",
+    "selection_reason",
+    "selection_weight",
+    "manual_carry_forward",
+    "disputed_carry_forward",
+    "adjacent_addition",
+    "fresh_addition",
+    "repeated_signal",
+    "source_artifact_count"
+  ]
+}

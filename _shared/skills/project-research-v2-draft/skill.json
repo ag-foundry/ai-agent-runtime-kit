@@ -1,0 +1,147 @@
+{
+  "name": "project-research",
+  "version": "2.0-draft",
+  "status": "draft",
+  "entry_policy": "SKILL.md",
+  "description": "Memory-first bounded research before planning; schema-first v2 draft with dual execution modes: chatgpt_codex and openai_api.",
+  "triggers": {
+    "use_when": [
+      "new project",
+      "material project direction change",
+      "external platform or dependency research needed",
+      "need bounded pre-plan research"
+    ],
+    "avoid_when": [
+      "tiny local edit",
+      "routine follow-up work",
+      "implementation already planned with no real scope change"
+    ]
+  },
+  "execution_modes": {
+    "chatgpt_codex": {
+      "human_in_loop": true,
+      "requires_api_key": false,
+      "supports_background_automation": false,
+      "model_access_layer": "interactive_chatgpt_or_codex",
+      "intended_use": [
+        "chatgpt pro workflow",
+        "codex workflow",
+        "interactive terminal and VS Code sessions",
+        "manual review and approval"
+      ]
+    },
+    "openai_api": {
+      "human_in_loop": false,
+      "requires_api_key": true,
+      "supports_background_automation": true,
+      "model_access_layer": "server_side_openai_api",
+      "recommended_api_surface": "responses_api",
+      "intended_use": [
+        "server-side execution",
+        "scheduled jobs",
+        "orchestration graphs",
+        "webhooks and automation"
+      ]
+    }
+  },
+  "modes": {
+    "none": {
+      "external_search": false
+    },
+    "quick": {
+      "metadata_candidates_max": 6,
+      "deep_inspections_max": 3,
+      "similar_solutions_target": "2-3",
+      "official_sources_target": "1-2",
+      "recurring_risks_target": "3-5"
+    },
+    "deep": {
+      "metadata_candidates_max": 10,
+      "deep_inspections_max": 6,
+      "similar_solutions_target": "4-6",
+      "official_sources_target": "2-4",
+      "recurring_risks_target": "5-10"
+    }
+  },
+  "required_outputs": [
+    "context.json",
+    "RESEARCH.md",
+    "sources.json",
+    "run_manifest.json",
+    "findings.jsonl",
+    "provenance.json",
+    "quality_report.json"
+  ],
+  "required_schemas": [
+    "schemas/context.schema.json",
+    "schemas/source.schema.json",
+    "schemas/finding.schema.json",
+    "schemas/research_report.schema.json",
+    "schemas/run_manifest.schema.json"
+  ],
+  "quality_gates": [
+    "search_targets_have_query_sets",
+    "no_memory_boilerplate_dominance",
+    "starting_approach_not_generic",
+    "anti_patterns_present",
+    "provenance_present_for_findings"
+  ],
+  "shared_contract_rules": [
+    "artifact_contract_shared_across_execution_modes",
+    "validator_shared_across_execution_modes",
+    "eval_shared_across_execution_modes",
+    "regression_shared_across_execution_modes",
+    "memory_first_policy_shared_across_execution_modes"
+  ],
+  "future_flows": [
+    "watchtower",
+    "housekeeper",
+    "project-init"
+  ],
+  "artifact_contract_ref": "references/RUNNER_V2_ARTIFACT_CONTRACT.md",
+  "runner_contract": {
+    "artifact_dir_pattern": "artifacts/research/<timestamp>/",
+    "canonical_artifacts": [
+      "context.json",
+      "RESEARCH.md",
+      "sources.json",
+      "run_manifest.json",
+      "findings.jsonl",
+      "provenance.json",
+      "quality_report.json"
+    ],
+    "latest_symlink": "artifacts/research/latest"
+  },
+  "runner_write_order": [
+    "context.json",
+    "sources.json",
+    "findings.jsonl",
+    "provenance.json",
+    "quality_report.json",
+    "run_manifest.json",
+    "RESEARCH.md"
+  ],
+  "consistency_requirements": [
+    "project_type_consistent_across_artifacts",
+    "mode_consistent_across_artifacts",
+    "artifact_dir_consistent_across_artifacts",
+    "search_targets_aligned_with_query_sets",
+    "starting_approach_consistent_between_sources_and_research",
+    "quality_report_and_run_manifest_status_aligned",
+    "execution_mode_consistent_across_artifacts_when_present"
+  ],
+  "migration_rule": {
+    "start_mode": "chatgpt_codex",
+    "upgrade_mode": "openai_api",
+    "require_shared_artifacts": true,
+    "require_shared_quality_contract": true
+  },
+  "non_goals_current_stage": [
+    "full_deep_research_execution",
+    "self_modify_skill",
+    "self_upgrade_dependencies",
+    "auto_delete_important_artifacts",
+    "weekly_watchtower_logic",
+    "hygiene_cleanup_logic"
+  ]
+}

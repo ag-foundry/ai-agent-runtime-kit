@@ -1,0 +1,745 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import argparse
+import datetime as dt
+import os
+import re
+import shutil
+from pathlib import Path
+
+HOME = Path.home()
+AGENTS = HOME / "agents"
+SHARED = AGENTS / "_shared"
+TEMPLATES_BIN = SHARED / "templates" / "bin"
+BIN = HOME / "bin"
+
+TOPICS = [
+    "core",
+    "vuplus",
+    "epg",
+    "vpn",
+    "router",
+    "minipc",
+    "mcp",
+    "accounting",
+    "skins-plugins",
+    "bonding",
+]
+
+BEGIN = "<!-- BEGIN {name} -->"
+END = "<!-- END {name} -->"
+
+def now_ts() -> str:
+    return dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+def ensure_dir(p: Path) -> None:
+    p.mkdir(parents=True, exist_ok=True)
+
+def backup_file(p: Path, ts: str, dry_run: bool) -> None:
+    if not p.exists():
+        return
+    b = p.with_name(p.name + f".bak-{ts}")
+    if dry_run:
+        print(f"[DRY] backup {p} -> {b}")
+        return
+    shutil.copy2(p, b)
+    print(f"[OK] backup {p} -> {b}")
+
+def upsert_section(p: Path, section_name: str, body: str, ts: str, dry_run: bool) -> None:
+    """
+    Insert or replace a marked section in a markdown file.
+    If markers are not found, append the section at end.
+    """
+    start = BEGIN.format(name=section_name)
+    end = END.format(name=section_name)
+
+    if not p.exists():
+        content = f"{start}\n{body.rstrip()}\n{end}\n"
+        if dry_run:
+            print(f"[DRY] create {p} (new file with section {section_name})")
+            return
+        ensure_dir(p.parent)
+        p.write_text(content, encoding="utf-8")
+        print(f"[OK] create {p}")
+        return
+
+    old = p.read_text(encoding="utf-8", errors="ignore")
+    if start in old and end in old:
+        pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
+        new_block = f"{start}\n{body.rstrip()}\n{end}"
+        new = pattern.sub(new_block, old, count=1)
+        if new == old:
+            print(f"[OK] {p}: section {section_name} already up-to-date")
+            return
+        backup_file(p, ts, dry_run)
+        if dry_run:
+            print(f"[DRY] update section {section_name} in {p}")
+            return
+        p.write_text(new, encoding="utf-8")
+        print(f"[OK] update section {section_name} in {p}")
+    else:
+        # append
+        append = "\n\n" + f"{start}\n{body.rstrip()}\n{end}\n"
+        backup_file(p, ts, dry_run)
+        if dry_run:
+            print(f"[DRY] append section {section_name} to {p}")
+            return
+        p.write_text(old.rstrip() + append, encoding="utf-8")
+        print(f"[OK] append section {section_name} to {p}")
+
+def write_file(p: Path, content: str, ts: str, dry_run: bool, executable: bool=False) -> None:
+    ensure_dir(p.parent)
+    if p.exists():
+        backup_file(p, ts, dry_run)
+    if dry_run:
+        print(f"[DRY] write {p}")
+        return
+    p.write_text(content.rstrip() + "\n", encoding="utf-8")
+    if executable:
+        p.chmod(0o755)
+    print(f"[OK] write {p}")
+
+def install_executable(name: str, content: str, ts: str, dry_run: bool) -> None:
+    # write to ~/bin and also to templates (so apply-fix can restore)
+    write_file(BIN / name, content, ts, dry_run, executable=True)
+    ensure_dir(TEMPLATES_BIN)
+    write_file(TEMPLATES_BIN / name, content, ts, dry_run, executable=True)
+
+def ensure_task_md(topic: str, ts: str, dry_run: bool) -> None:
+    d = AGENTS / topic
+    if not d.exists():
+        return
+    p = d / "TASK.md"
+    if p.exists() and p.stat().st_size > 10:
+        return
+    content = f"""# TASK (входная задача)
+
+Напиши задачу сюда (одним файлом), затем запускай:
+
+- План: `agent-plan {topic}`
+- Выполнение: `agent-do {topic}`
+- Ревью: `agent-review {topic}`
+
+## Что нужно указать
+- **Цель** (что получить в итоге)
+- **Ограничения** (что нельзя трогать / что обязательно)
+- **Definition of Done** (как понять, что готово)
+- **Риски** (если есть)
+
+## Текст задачи
+(замени этот текст на свою задачу)
+"""
+    write_file(p, content, ts, dry_run, executable=False)
+
+def main():
+    ap = argparse.ArgumentParser(description="Upgrade Codex project scaffolding with CloudCode-like workflow.")
+    ap.add_argument("--dry-run", action="store_true", help="Do not write, only print actions.")
+    args = ap.parse_args()
+
+    ts = now_ts()
+    dry = args.dry_run
+
+    # 0) Ensure dirs
+    ensure_dir(SHARED)
+    ensure_dir(SHARED / "commands")
+    ensure_dir(SHARED / "skills")
+    ensure_dir(SHARED / "artifacts" / "dashboard")
+
+    # 1) Update shared AGENTS.md with operational workflow
+    shared_agents = SHARED / "AGENTS.md"
+    ops_block = """## Операционный протокол (PLAN > DO > REVIEW) — обязательный стандарт
+
+### Зачем
+- Сначала **PLAN** (read-only): уточняем требования, фиксируем план и DoD.
+- Потом **DO** (workspace-write): выполняем строго по плану (после явного “ОК”).
+- Затем **REVIEW** (fresh session): отдельный запуск для ревью/рисков/безопасности.
+
+### Как стартовать задачу (универсально для всех тем)
+1) Открой тему: `agent-topic <topic>` (если темы нет — она создастся).
+2) Запиши задачу в `~/agents/<topic>/TASK.md`.
+3) Сгенерируй план: `agent-plan <topic>` > план сохраняется в `artifacts/plans/*.plan.md`.
+4) После согласования выполни: `agent-do <topic>` (исполнение).
+5) Сделай ревью: `agent-review <topic>` (свежая проверка).
+
+### Команды и Skills (процедуры как код)
+- **Команды** (аналог slash-commands): `~/agents/_shared/commands/*.md`
+- **Skills** (инструкции “на максималках”): `~/agents/_shared/skills/`
+Запуск команд: `agent-cmd <topic> <command> [args]`
+
+### MCP (инструменты-розетки) — политика безопасности
+- MCP **выключены по умолчанию**. Подключаем только по необходимости и по одной штуке.
+- На каждый MCP обязательно: ADR в `~/agents/mcp/DECISIONS/ADR-*.md` (права/риски/тест/откат).
+- Любые опасные действия (сеть/файрвол/порты/nginx/docker/system) — **только по явному approval**.
+
+### Большие файлы — НЕ вставлять в терминал
+Большие скрипты/конфиги правим как файлы:
+- Notepad++: **UTF-8**, **Unix LF**
+- загрузка через Termius **SFTP** в `/home/agent/bin/`
+- запуск короткими командами в терминале (chmod + execute)
+"""
+    upsert_section(shared_agents, "OPS_WORKFLOW_V2", ops_block, ts, dry)
+
+    # 2) Update shared README.md with quickstart + roadmap
+    shared_readme = SHARED / "README.md"
+    readme_block = """## Быстрый старт (после апгрейда)
+
+### Базовые команды
+- Создать/открыть тему: `agent-topic <topic> [--profile <name>]`
+- PLAN (только план): `agent-plan <topic>` (читает `TASK.md`)
+- DO (исполнение): `agent-do <topic>`
+- REVIEW (свежая проверка): `agent-review <topic>`
+- Close day (итоги дня): `agent-close-day`
+- Healthcheck: `agent-health <topic> quick|full`
+
+### Где что лежит
+- Глобальные правила проекта: `~/agents/_shared/AGENTS.md` (видны Codex через `~/.codex/AGENTS.md`)
+- Команды (процедуры): `~/agents/_shared/commands/`
+- Skills (процессы): `~/agents/_shared/skills/`
+- Память/контекст по теме: `~/agents/<topic>/memory/context.md`
+- Запуски/логи: `~/agents/<topic>/runs/<run_id>.*`
+- Артефакты: `~/agents/<topic>/artifacts/`
+
+## Дорожная карта (что внедряем по порядку)
+
+### P0 (сейчас) — единый протокол и автоматизация
+1) PLAN>DO>REVIEW как обязательный стандарт (готово: скрипты + docs).
+2) Команды (slash-commands) в виде md-процедур + запуск `agent-cmd`.
+3) Close-day отчёт по всем темам (сумма токенов/итоги).
+
+### P1 — Skills и повторяемость
+4) Skills библиотека: “VPN playbook”, “VU+ диагностика”, “EPG pipeline”.
+5) Авто-индексация артефактов в memory/graph.
+
+### P2 — MCP (инструменты) безопасно
+6) MCP registry + allow/deny/conditional + ADR на каждый коннектор.
+7) “Docs/Context” инструмент для актуальной документации.
+
+### P3 — Subagents / swarm
+8) Параллельные прогоны: research/build/audit > merge в один результат.
+
+### P4 — Dashboard
+9) Веб-панель: токены/запуски/ошибки/тренды (локально через SSH tunnel).
+"""
+    upsert_section(shared_readme, "QUICKSTART_ROADMAP_V2", readme_block, ts, dry)
+
+    # 3) START_HERE.md
+    start_here = SHARED / "START_HERE.md"
+    start_content = """# START HERE — как работать с системой
+
+## 1) Выбери тему (topic)
+Примеры: `vpn`, `vuplus`, `epg`, `router`, `accounting`
+
+
+Если темы нет:
+- `agent-topic vpn --profile vpn --no-codex`
+
+## 2) Запиши задачу в TASK.md
+Файл: `~/agents/<topic>/TASK.md`
+
+## 3) PLAN (только планирование)
+- `agent-plan <topic>`
+План сохраняется в: `~/agents/<topic>/artifacts/plans/*.plan.md`
+
+## 4) DO (исполнение)
+- `agent-do <topic>`
+
+## 5) REVIEW (свежая проверка)
+- `agent-review <topic>`
+
+## 6) Итоги дня
+- `agent-close-day`
+Сводка пишется в: `~/agents/_shared/memory/` и в `core/artifacts/`
+
+## Важное правило
+Большие файлы НЕ вставляй в терминал.
+Редактируй локально (Notepad++ UTF-8 + Unix LF) и загружай через Termius SFTP в `/home/agent/bin/`.
+"""
+    write_file(start_here, start_content, ts, dry, executable=False)
+
+    # 4) Commands (md)
+    commands_dir = SHARED / "commands"
+    cmd_plan = """---
+mode: readonly
+name: plan
+---
+# PLAN — сначала план, потом действия
+
+## Цель
+Сформировать план выполнения задачи без изменений файлов/системы.
+
+## Что сделать
+1) Прочитать `./AGENTS.md` и `./memory/context.md`.
+2) Уточнить недостающие требования (списком вопросов).
+3) Предложить 2–3 варианта решения (если уместно).
+4) Выдать финальный план на 3–7 шагов + DoD.
+5) Отдельно: риски, проверки, откат.
+
+## Выход
+Только план. Никаких правок файлов.
+"""
+    cmd_do = """---
+mode: edit
+name: do
+---
+# DO — выполнение по утверждённому плану
+
+## Цель
+Выполнить изменения строго по плану, фиксируя артефакты и решения.
+
+## Что сделать
+1) Прочитать план из `artifacts/plans/*.plan.md` (последний).
+2) Выполнить шаги, создавая/обновляя файлы.
+3) Каждое важное решение — ADR в `DECISIONS/`.
+4) Результаты — в `artifacts/`.
+5) Обновить `LOG.md` и `TODO.md` по факту.
+
+## Выход
+Список сделанных изменений + где лежат артефакты + как проверить/откатить.
+"""
+    cmd_review = """---
+mode: readonly
+name: review
+---
+# REVIEW — свежая проверка после изменений
+
+## Цель
+Найти проблемы в логике/безопасности/структуре и предложить правки.
+
+## Что сделать
+1) Посмотреть последние изменения (git diff если есть; иначе — по времени модификации файлов).
+2) Проверить безопасность (секреты, права, внешние порты).
+3) Проверить структуру проекта (куда что положено).
+4) Проверить тест/проверки (если предусмотрены).
+5) Дать список проблем (severity) + конкретные предложения исправлений.
+
+## Выход
+Отчёт ревью. Без правок.
+"""
+    cmd_close_day = """---
+mode: readonly
+name: close-day
+---
+# CLOSE DAY — собрать итоги дня по темам
+
+## Цель
+Собрать сводку: что делали, что сломали/починили, сколько токенов ушло, какие выводы.
+
+## Выход
+Один markdown-отчёт + (опционально) факты для graph/memory.
+"""
+    cmd_mcp = """---
+mode: readonly
+name: mcp-onboard
+---
+# MCP ONBOARD — подключение инструмента безопасно
+
+## Правило
+Никаких MCP “всё подряд”. Каждый MCP — отдельный ADR.
+
+## Что сделать
+1) Описать MCP: возможности, доступы, риски.
+2) Определить policy: allow/deny/conditional.
+3) Сделать тест: минимальные команды.
+4) Сделать rollback: как отключить.
+5) Записать ADR в `~/agents/mcp/DECISIONS/ADR-*.md`.
+"""
+    write_file(commands_dir / "plan.md", cmd_plan, ts, dry)
+    write_file(commands_dir / "do.md", cmd_do, ts, dry)
+    write_file(commands_dir / "review.md", cmd_review, ts, dry)
+    write_file(commands_dir / "close-day.md", cmd_close_day, ts, dry)
+    write_file(commands_dir / "mcp-onboard.md", cmd_mcp, ts, dry)
+
+    # 5) Skills (minimal)
+    skills_dir = SHARED / "skills"
+    skill_workflow = """# Skill: PLAN > DO > REVIEW (универсальный)
+
+## Когда применять
+Всегда для задач средней и высокой сложности.
+
+## Вход
+- topic
+- TASK.md
+- контекст из памяти (RAG + graph)
+
+## Выход
+- plan.md (DoD + шаги)
+- результаты в artifacts/
+- ADR при необходимости
+- review.md
+
+## Протокол
+1) PLAN: только план + риски + проверки + откат.
+2) DO: выполнение строго по плану.
+3) REVIEW: отдельная сессия, независимая проверка.
+"""
+    write_file(skills_dir / "skill-plan-do-review.md", skill_workflow, ts, dry)
+
+    # 6) Install executables (wrappers)
+    agent_cmd = r"""#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: agent-cmd <topic> <command> [args...]"
+  exit 2
+fi
+
+TOPIC="$1"; shift
+CMD="$1"; shift || true
+ARGS="$*"
+
+DIR="$HOME/agents/$TOPIC"
+[[ -d "$DIR" ]] || { echo "ERROR: topic dir not found: $DIR"; exit 1; }
+
+CMD_FILE="$HOME/agents/_shared/commands/$CMD.md"
+[[ -f "$CMD_FILE" ]] || { echo "ERROR: command not found: $CMD_FILE"; exit 1; }
+
+MODE="readonly"
+if grep -q "^mode: edit" "$CMD_FILE"; then MODE="edit"; fi
+
+PROMPT="$(cat "$CMD_FILE")"
+
+if [[ -n "${ARGS:-}" ]]; then
+  PROMPT="$PROMPT"$'\n\n'"## Args"$'\n'"$ARGS"
+fi
+
+AGENT_MODE="$MODE" agent-exec "$TOPIC" "$PROMPT"
+"""
+    agent_plan = r"""#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: agent-plan <topic> [task...]"
+  echo "If task not provided, reads ~/agents/<topic>/TASK.md"
+  exit 2
+fi
+
+TOPIC="$1"; shift || true
+DIR="$HOME/agents/$TOPIC"
+[[ -d "$DIR" ]] || { echo "ERROR: topic dir not found: $DIR"; exit 1; }
+
+TASK_FILE="$DIR/TASK.md"
+if [[ $# -gt 0 ]]; then
+  printf "# TASK\n\n%s\n" "$*" > "$TASK_FILE"
+fi
+
+[[ -s "$TASK_FILE" ]] || { echo "ERROR: TASK.md missing or empty: $TASK_FILE"; exit 1; }
+
+PLAN_DIR="$DIR/artifacts/plans"
+mkdir -p "$PLAN_DIR"
+
+OUT="$(AGENT_MODE=readonly agent-cmd "$TOPIC" plan 2>/dev/null || true)"
+# If agent-cmd failed due to prompt method, fall back:
+if ! echo "$OUT" | grep -q "^OK: run_id="; then
+  OUT="$(AGENT_MODE=readonly agent-exec "$TOPIC" "$(cat "$HOME/agents/_shared/commands/plan.md")"$'\n\n'"## TASK"$'\n'"$(cat "$TASK_FILE")")"
+fi
+
+RUN_ID="$(echo "$OUT" | sed -n 's/^OK: run_id=//p' | tail -n 1)"
+if [[ -z "$RUN_ID" ]]; then
+  echo "$OUT"
+  echo "ERROR: could not parse run_id"
+  exit 1
+fi
+
+cp "$DIR/runs/$RUN_ID.last.md" "$PLAN_DIR/$RUN_ID.plan.md" || true
+echo "PLAN: $PLAN_DIR/$RUN_ID.plan.md"
+"""
+    agent_do = r"""#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: agent-do <topic>"
+  exit 2
+fi
+
+TOPIC="$1"; shift || true
+DIR="$HOME/agents/$TOPIC"
+[[ -d "$DIR" ]] || { echo "ERROR: topic dir not found: $DIR"; exit 1; }
+
+PLAN_DIR="$DIR/artifacts/plans"
+LATEST_PLAN="$(ls -t "$PLAN_DIR"/*.plan.md 2>/dev/null | head -n 1 || true)"
+[[ -n "$LATEST_PLAN" ]] || { echo "ERROR: no plan found in $PLAN_DIR. Run: agent-plan $TOPIC"; exit 1; }
+
+PROMPT="$(cat "$HOME/agents/_shared/commands/do.md")"
+PROMPT="$PROMPT"$'\n\n'"## Latest plan"$'\n'"$(cat "$LATEST_PLAN")"
+
+AGENT_MODE=edit agent-exec "$TOPIC" "$PROMPT"
+"""
+    agent_review = r"""#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: agent-review <topic>"
+  exit 2
+fi
+
+TOPIC="$1"; shift || true
+DIR="$HOME/agents/$TOPIC"
+[[ -d "$DIR" ]] || { echo "ERROR: topic dir not found: $DIR"; exit 1; }
+
+PROMPT="$(cat "$HOME/agents/_shared/commands/review.md")"
+PROMPT="$PROMPT"$'\n\n'"## Hint"$'\n'"If git is available, run git diff. Otherwise list recently modified files excluding runs/ and artifacts/."
+
+AGENT_MODE=readonly agent-exec "$TOPIC" "$PROMPT"
+"""
+    agent_close_day = r"""#!/usr/bin/env bash
+set -euo pipefail
+
+DATE="${1:-$(date +%F)}"
+OUTDIR="$HOME/agents/_shared/memory"
+mkdir -p "$OUTDIR"
+OUT="$OUTDIR/note-${DATE//-/}-close-day.md"
+
+echo "# Close Day: $DATE" > "$OUT"
+echo "" >> "$OUT"
+echo "Generated: $(date -Is)" >> "$OUT"
+echo "" >> "$OUT"
+
+total_in=0
+total_out=0
+
+for d in "$HOME/agents"/*; do
+  bn="$(basename "$d")"
+  [[ "$bn" == "_shared" ]] && continue
+  [[ -d "$d/runs" ]] || continue
+
+  files=( "$d/runs/${DATE}-"*.summary.md )
+  [[ -e "${files[0]}" ]] || continue
+
+  echo "## Topic: $bn" >> "$OUT"
+  sum_in=0
+  sum_out=0
+
+  for f in "${files[@]}"; do
+    in_tok="$(grep -E 'input_tokens:' "$f" | awk '{print $2}' || echo 0)"
+    out_tok="$(grep -E 'output_tokens:' "$f" | awk '{print $2}' || echo 0)"
+    sum_in=$((sum_in + ${in_tok:-0}))
+    sum_out=$((sum_out + ${out_tok:-0}))
+
+    run_id="$(basename "$f" .summary.md)"
+    last="$d/runs/$run_id.last.md"
+    echo "" >> "$OUT"
+    echo "### Run: $run_id" >> "$OUT"
+    echo "- input_tokens: $in_tok" >> "$OUT"
+    echo "- output_tokens: $out_tok" >> "$OUT"
+    if [[ -s "$last" ]]; then
+      echo "" >> "$OUT"
+      echo "Last message:" >> "$OUT"
+      echo '```' >> "$OUT"
+      sed -n '1,120p' "$last" >> "$OUT"
+      echo '```' >> "$OUT"
+    fi
+  done
+
+  total_in=$((total_in + sum_in))
+  total_out=$((total_out + sum_out))
+
+  echo "" >> "$OUT"
+  echo "**Topic totals:** input=$sum_in output=$sum_out" >> "$OUT"
+  echo "" >> "$OUT"
+done
+
+echo "---" >> "$OUT"
+echo "**All topics totals:** input=$total_in output=$total_out" >> "$OUT"
+echo "" >> "$OUT"
+echo "Saved: $OUT"
+echo "OK: $OUT"
+"""
+    agent_dashboard_build = r"""#!/usr/bin/env bash
+set -euo pipefail
+
+OUTDIR="$HOME/agents/_shared/artifacts/dashboard"
+mkdir -p "$OUTDIR"
+
+python3 - <<'PY'
+import json, re
+from pathlib import Path
+from datetime import datetime
+
+HOME = Path.home()
+AGENTS = HOME / "agents"
+OUTDIR = AGENTS / "_shared" / "artifacts" / "dashboard"
+OUTDIR.mkdir(parents=True, exist_ok=True)
+
+def parse_summary(p: Path):
+    txt = p.read_text(encoding="utf-8", errors="ignore")
+    m_in = re.search(r"input_tokens:\s*(\d+)", txt)
+    m_c  = re.search(r"cached_input_tokens:\s*(\d+)", txt)
+    m_out= re.search(r"output_tokens:\s*(\d+)", txt)
+    return {
+        "run_id": p.name.replace(".summary.md",""),
+        "ts": p.name[:19],
+        "input_tokens": int(m_in.group(1)) if m_in else 0,
+        "cached_input_tokens": int(m_c.group(1)) if m_c else 0,
+        "output_tokens": int(m_out.group(1)) if m_out else 0,
+    }
+
+data = {
+    "generated": datetime.now().isoformat(timespec="seconds"),
+    "topics": {}
+}
+
+for d in sorted(AGENTS.iterdir()):
+    if not d.is_dir(): 
+        continue
+    if d.name == "_shared":
+        continue
+    runs = d / "runs"
+    if not runs.exists():
+        continue
+    items = [parse_summary(p) for p in sorted(runs.glob("*.summary.md"))]
+    if items:
+        data["topics"][d.name] = items[-300:]  # limit
+
+(OUTDIR / "data.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+html = '''<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Codex Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{font-family:system-ui,Segoe UI,Arial;margin:20px;max-width:1200px}
+.card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0}
+small{color:#666}
+select{padding:6px 10px;border-radius:10px}
+table{border-collapse:collapse;width:100%}
+td,th{border-bottom:1px solid #eee;padding:8px;text-align:left;font-variant-numeric:tabular-nums}
+</style></head><body>
+<h1>Codex Dashboard</h1>
+<small id="meta"></small>
+
+<div class="card">
+  <label>Тема: <select id="topic"></select></label>
+</div>
+
+<div class="card">
+  <h3>Tokens per run</h3>
+  <canvas id="chart" height="90"></canvas>
+</div>
+
+<div class="card">
+  <h3>Latest runs</h3>
+  <table>
+    <thead><tr><th>ts</th><th>run_id</th><th>input</th><th>cached</th><th>output</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<script>
+let chart;
+
+function render(d, tname){
+  const runs = d.topics[tname] || [];
+  const labels = runs.map(x=>x.ts);
+  const inp = runs.map(x=>x.input_tokens||0);
+  const out = runs.map(x=>x.output_tokens||0);
+
+  if(chart){ chart.destroy(); }
+  chart = new Chart(document.getElementById('chart'),{
+    type:'line',
+    data:{labels, datasets:[
+      {label:'input_tokens', data:inp},
+      {label:'output_tokens', data:out},
+    ]},
+    options:{responsive:true, interaction:{mode:'index', intersect:false}}
+  });
+
+  const r=[...runs].reverse().slice(0,60);
+  rows.innerHTML = r.map(x=>`<tr><td>${x.ts}</td><td>${x.run_id}</td><td>${x.input_tokens}</td><td>${x.cached_input_tokens}</td><td>${x.output_tokens}</td></tr>`).join('');
+}
+
+fetch('./data.json').then(r=>r.json()).then(d=>{
+  meta.textContent = `generated: ${d.generated} | topics: ${Object.keys(d.topics).length}`;
+  const keys = Object.keys(d.topics).sort();
+  keys.forEach(k=>{
+    const o=document.createElement('option');
+    o.value=k; o.textContent=k;
+    topic.appendChild(o);
+  });
+  const first = keys[0] || '';
+  if(first){
+    topic.value = first;
+    render(d, first);
+    topic.addEventListener('change', ()=>render(d, topic.value));
+  }
+});
+</script>
+</body></html>
+"""
+(OUTDIR / "index.html").write_text(html, encoding="utf-8")
+print("OK:", OUTDIR)
+PY
+
+echo "OK: built $OUTDIR/index.html"
+"""
+    agent_dashboard_serve = r"""#!/usr/bin/env bash
+set -euo pipefail
+cd "$HOME/agents/_shared/artifacts/dashboard"
+python3 -m http.server 8088 --bind 127.0.0.1
+"""
+
+    install_executable("agent-cmd", agent_cmd, ts, dry)
+    install_executable("agent-plan", agent_plan, ts, dry)
+    install_executable("agent-do", agent_do, ts, dry)
+    install_executable("agent-review", agent_review, ts, dry)
+    install_executable("agent-close-day", agent_close_day, ts, dry)
+    install_executable("agent-dashboard-build", agent_dashboard_build, ts, dry)
+    install_executable("agent-dashboard-serve", agent_dashboard_serve, ts, dry)
+
+    # 7) Update core TODO + mcp TODO with roadmap sections (non-destructive)
+    core_todo = AGENTS / "core" / "TODO.md"
+    core_block = """## CloudCode-перенос: что внедряем дальше (порядок)
+
+### P0
+- [ ] PLAN>DO>REVIEW как стандарт (agent-plan/agent-do/agent-review) — **включено**
+- [ ] Команды (md-процедуры) + `agent-cmd` — **включено**
+- [ ] Close-day отчёт + токены по темам — **включено**
+
+### P1
+- [ ] Skills библиотека под твои темы (vpn/vuplus/epg/
+)
+- [ ] Авто-индексация артефактов (memory + graphmem)
+
+### P2
+- [ ] MCP registry + allow/deny/conditional + ADR на каждый MCP
+- [ ] “Docs/Context” слой для актуальной документации
+
+### P3
+- [ ] Subagents/swarm: research/build/audit > merge
+
+### P4
+- [ ] Dashboard: сбор статистики + локальный просмотр через SSH tunnel
+"""
+    upsert_section(core_todo, "CLOUDCODE_ROADMAP_V2", core_block, ts, dry)
+
+    mcp_todo = AGENTS / "mcp" / "TODO.md"
+    mcp_block = """## MCP (инструменты): внедрение безопасно (порядок)
+
+1) Реестр MCP: список серверов + статусы (enabled/disabled) + описание прав.
+2) Политика allow/deny/conditional:
+   - что разрешено всегда
+   - что запрещено
+   - что только по approval
+3) ADR на каждый MCP:
+   - scope доступа
+   - риски/угрозы
+   - тест (команды)
+   - откат/disable
+4) Минимальный “safe MCP” (read-only) для проверки пайплайна.
+5) Затем подключать “глаза/доки” (browser/docs) и БД только по необходимости.
+"""
+    upsert_section(mcp_todo, "MCP_PLAN_V2", mcp_block, ts, dry)
+
+    # 8) Ensure TASK.md in each topic
+    for t in TOPICS:
+        ensure_task_md(t, ts, dry)
+
+    print("\nDONE.")
+    if dry:
+        print("DRY-RUN mode: no files written.")
+    else:
+        print("Applied changes with backups (*.bak-<timestamp>).")
+        print("Next: agent-health core quick && agent-plan core (after filling TASK.md).")
+
+if __name__ == "__main__":
+    main()

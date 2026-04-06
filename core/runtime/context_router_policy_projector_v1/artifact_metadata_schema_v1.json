@@ -1,0 +1,19 @@
+{
+  "format": "core-context-router-artifact-metadata-v1",
+  "required_fields": [
+    "path",
+    "topic",
+    "run_id",
+    "artifact_kind",
+    "raw_or_derived",
+    "authority_level",
+    "source_lineage",
+    "currentness",
+    "exact_target_match",
+    "allowed_modes",
+    "contamination_risk",
+    "created_at",
+    "latest_role",
+    "relative_priority"
+  ]
+}

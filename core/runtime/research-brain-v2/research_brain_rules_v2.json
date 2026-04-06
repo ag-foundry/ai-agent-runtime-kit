@@ -1,0 +1,111 @@
+{
+  "format": "core-research-brain-rules-v2",
+  "version": "v2",
+  "v1_capabilities": [
+    "one experiment registry over the validated skill-creator corpus",
+    "one compact retrospective report",
+    "winning-pattern, blocker, and negative-result extraction",
+    "one next-step portfolio over the paused skills corpus",
+    "durable writeback pointers into steering and memory"
+  ],
+  "v2_minimal_components": [
+    "task intake classification",
+    "layered local search-depth control",
+    "execution-class routing",
+    "registry-backed exhausted-line and parity enforcement",
+    "negative-result and blocker carry-forward",
+    "post-run writeback plan generation"
+  ],
+  "v3_deferred": [
+    "background or daemon automation",
+    "cross-topic portfolio aggregation across multiple corpora",
+    "automatic experiment execution",
+    "memory redesign or a broader governance rewrite"
+  ],
+  "task_kind_to_execution_class": {
+    "meta-layer-build": "meta-layer-build",
+    "retrospective-synthesis": "registry-steered-retrospective",
+    "experiment-rerun": "blocked-same-class-rerun",
+    "experiment-design": "narrow-next-class-validation",
+    "cross-topic-intake": "cross-topic-local-smoke"
+  },
+  "execution_classes": {
+    "meta-layer-build": {
+      "label": "Build or extend a research control-plane layer without starting a new experiment line.",
+      "default_search_depth": "none"
+    },
+    "registry-steered-retrospective": {
+      "label": "Use the registry and durable memory to synthesize the current corpus before any new run.",
+      "default_search_depth": "none"
+    },
+    "blocked-same-class-rerun": {
+      "label": "Reject a same-proof-class rerun when the line is locally exhausted or paused.",
+      "default_search_depth": "none"
+    },
+    "narrow-next-class-validation": {
+      "label": "Design one narrower next-class validation after registry evidence selects it explicitly.",
+      "default_search_depth": "quick"
+    },
+    "cross-topic-local-smoke": {
+      "label": "Validate the brain on one other local topic without external research or new framework work.",
+      "default_search_depth": "quick"
+    }
+  },
+  "search_depth_rules": [
+    {
+      "rule_id": "local-memory-sufficient-meta-layer",
+      "search_depth": "none",
+      "reason": "Use only local memory, steering, and existing artifacts when the task is a meta-layer build or retrospective over a well-covered corpus."
+    },
+    {
+      "rule_id": "blocked-same-class-rerun",
+      "search_depth": "none",
+      "reason": "Do not spend more search effort on a locally exhausted line unless the proof class changes."
+    },
+    {
+      "rule_id": "cross-topic-local-smoke",
+      "search_depth": "quick",
+      "reason": "Use one bounded local sweep when validating the layer on another topic or another local branch."
+    },
+    {
+      "rule_id": "ambiguous-new-area",
+      "search_depth": "deep",
+      "reason": "Escalate only when the topic is materially new, ambiguity remains high, or external sources are required."
+    }
+  ],
+  "blocker_countermeasures": {
+    "baseline_trigger_mismatch": "Require a decisive proof surface that baseline cannot reconstruct from direct file reads alone.",
+    "meaningful_delta_missing": "Change the proof class or machine surface instead of repeating another cosmetic rerun.",
+    "bootstrap_overlap": "Prefer real artifact, file-state, or bundle-state evidence over prompt-contained or bootstrap-taught behavior.",
+    "summary_only_decoy": "Refuse summary-only comfort evidence when authoritative machine artifacts are missing or insufficient.",
+    "transport_caveat": "Do not treat timeout-sensitive or abort-sensitive wins as stable family proofs.",
+    "undertrigger": "Fail fast when the intended operational path is not actually triggered.",
+    "malformed_output": "Reject runs that do not satisfy the required output contract or verdict vocabulary.",
+    "tool_surface_not_used": "Require observable tool-use hits when the proof class depends on an exposed tool or MCP surface."
+  },
+  "priority_negative_result_ids": [
+    "server-vault-write-policy-delta-v2::server-vault-write-clarify-ambiguous-write-mode",
+    "runtime-governance-remediation-guard::runtime-governance-remediation-guard-live-remediation-needed",
+    "promotion-bundle-admission-guard-clean-second-pass::promotion-bundle-admission-guard-missing-provenance-bundle",
+    "ledger-evidence-audit-hardening-rerun::ledger-evidence-audit-source-localization"
+  ],
+  "hook_policy": {
+    "automatic_on_builder_run": [
+      "load the accepted experiment-intelligence outputs plus durable steering and memory files",
+      "classify the intake and choose bounded search depth",
+      "route the execution class",
+      "carry forward exhausted-line, blocker, and negative-result guardrails",
+      "generate a compact next-step portfolio",
+      "generate a post-run writeback plan"
+    ],
+    "explicit_only": [
+      "invoking the builder for a new intake or completed research phase",
+      "promoting derived conclusions into durable steering and memory",
+      "approving any resumed experiment line or wider rollout"
+    ],
+    "hook_points": [
+      "pre-run intake hook before planning a new experiment or research branch",
+      "post-run retrospective hook after a major research phase completes"
+    ]
+  }
+}

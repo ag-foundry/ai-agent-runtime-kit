@@ -1,0 +1,118 @@
+{
+  "version": "openclaw-pack-selection-policy-v1",
+  "allowed_pack_modes": [
+    "manual_case_selection",
+    "accepted_case_regeneration",
+    "broader_eval_expansion",
+    "post_gate_confirmation",
+    "disputed_rerun",
+    "adjacent_boundary_probe",
+    "legacy_fixed_map",
+    "case_header_reconstruction"
+  ],
+  "artifact_kinds": {
+    "accepted_case_manifest": {
+      "admissibility": "primary",
+      "base_weight": 100,
+      "raw_or_derived": "raw",
+      "contamination_risk": "low"
+    },
+    "source_case_file": {
+      "admissibility": "primary",
+      "base_weight": 95,
+      "raw_or_derived": "raw",
+      "contamination_risk": "low"
+    },
+    "case_file": {
+      "admissibility": "primary",
+      "base_weight": 90,
+      "raw_or_derived": "raw",
+      "contamination_risk": "low"
+    },
+    "review_pack_manifest": {
+      "admissibility": "primary",
+      "base_weight": 85,
+      "raw_or_derived": "derived",
+      "contamination_risk": "low"
+    },
+    "trial_plan_manifest": {
+      "admissibility": "primary",
+      "base_weight": 85,
+      "raw_or_derived": "derived",
+      "contamination_risk": "low"
+    },
+    "matrix_run_manifest": {
+      "admissibility": "primary",
+      "base_weight": 80,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    },
+    "review_artifact": {
+      "admissibility": "supporting",
+      "base_weight": 65,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    },
+    "result_matrix": {
+      "admissibility": "supporting_only",
+      "base_weight": 45,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    },
+    "repeated_signal": {
+      "admissibility": "supporting_only",
+      "base_weight": 40,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    },
+    "readiness_artifact": {
+      "admissibility": "supporting_only",
+      "base_weight": 35,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    },
+    "verdict_artifact": {
+      "admissibility": "supporting_only",
+      "base_weight": 30,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    },
+    "report_artifact": {
+      "admissibility": "supporting_only",
+      "base_weight": 30,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    },
+    "raw_output": {
+      "admissibility": "supporting_only",
+      "base_weight": 20,
+      "raw_or_derived": "raw",
+      "contamination_risk": "high"
+    },
+    "template_scaffold": {
+      "admissibility": "supporting",
+      "base_weight": 20,
+      "raw_or_derived": "derived",
+      "contamination_risk": "low"
+    },
+    "reference_document": {
+      "admissibility": "supporting",
+      "base_weight": 25,
+      "raw_or_derived": "derived",
+      "contamination_risk": "medium"
+    }
+  },
+  "weight_modifiers": {
+    "current_run": 20,
+    "registry": 15,
+    "historical_run": 5,
+    "exact_case_match": 15,
+    "selected_skill_match": 10,
+    "carry_forward": 10,
+    "disputed": 12,
+    "adjacent": 8,
+    "fresh": 6,
+    "repeated_signal": 6,
+    "contamination_risk_high_penalty": -15
+  }
+}

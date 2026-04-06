@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LAUNCHER="/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py"
+BASE="${HOME}/agents"
+SHARED="${BASE}/_shared"
+PROFILES="${SHARED}/profiles"
+
+PROFILE=""
+NO_CODEX="0"
+BOOTSTRAP_ROOT="$BASE"
+TOPIC=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  agent-topic <topic> [--profile <name>] [--bootstrap-root <dir>] [--no-codex]
+
+Examples:
+  agent-topic vuplus-openatv --profile vuplus
+  agent-topic vpn-netcup2 --profile vpn
+  agent-topic epg-pipeline --profile epg
+
+Notes:
+  - Это compatibility alias поверх managed topic bootstrap.
+  - Default server AI entrypoint после bootstrap: /home/agent/bin/agent-exec
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile)
+      PROFILE="${2:-}"; shift 2 ;;
+    --bootstrap-root)
+      BOOTSTRAP_ROOT="${2:-}"; shift 2 ;;
+    --no-codex)
+      NO_CODEX="1"; shift ;;
+    -h|--help)
+      usage; exit 0 ;;
+    *)
+      if [[ -z "$TOPIC" ]]; then
+        TOPIC="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$TOPIC" ]]; then
+  usage
+  exit 1
+fi
+
+if [[ ! -f "$LAUNCHER" ]]; then
+  echo "ERROR: managed launcher not found: $LAUNCHER" >&2
+  exit 1
+fi
+
+python3 "$LAUNCHER" \
+  --workflow-class topic_bootstrap \
+  --topic-name "$TOPIC" \
+  --bootstrap-root "$BOOTSTRAP_ROOT" \
+  --force \
+  --task-request "compatibility bootstrap alias agent-topic $TOPIC"
+
+DIR="$BOOTSTRAP_ROOT/$TOPIC"
+mkdir -p "$PROFILES"
+
+if [[ -n "$PROFILE" ]]; then
+  SRC="$PROFILES/$PROFILE.md"
+  if [[ -f "$SRC" ]]; then
+    cp -a "$SRC" "$DIR/PROFILE.md"
+  else
+    cat > "$DIR/PROFILE.md" <<MD
+# PROFILE: $PROFILE
+(Не найден шаблон: $SRC)
+MD
+  fi
+fi
+
+if [[ "$NO_CODEX" == "1" ]]; then
+  echo "OK: topic bootstrapped at $DIR"
+  echo "Next step: agent-exec --topic $TOPIC \"подними память по теме и предложи следующий шаг\""
+  exit 0
+fi
+
+cd "$DIR"
+exec codex

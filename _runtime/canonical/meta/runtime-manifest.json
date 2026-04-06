@@ -1,0 +1,404 @@
+{
+  "schema_version": "runtime-manifest-v1",
+  "generated_at_utc": "2026-04-06T19:18:07+00:00",
+  "generated_by": "/home/agent/agents/_runtime/tools/build-runtime-manifest.py",
+  "repo_root": "/home/agent/agents",
+  "live_runtime_root": "/home/agent/bin",
+  "canonical_runtime_root": "/home/agent/agents/_runtime/canonical/bin",
+  "meta_root": "/home/agent/agents/_runtime/canonical/meta",
+  "reference_files": {
+    "protected_working_set": "/home/agent/agents/_runtime/canonical/meta/protected-working-set.txt",
+    "source_hashes": "/home/agent/agents/_runtime/canonical/meta/src-from-bin.sha256",
+    "canonical_hashes": "/home/agent/agents/_runtime/canonical/meta/canonical.sha256"
+  },
+  "summary": {
+    "protected_file_count": 38,
+    "live_missing_count": 0,
+    "canonical_missing_count": 0,
+    "parity_ok_count": 38,
+    "parity_bad_count": 0,
+    "in_sync": true
+  },
+  "files": [
+    {
+      "name": "agent-exec",
+      "live_path": "/home/agent/bin/agent-exec",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/agent-exec",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "7489d9a4d4b8da41b4f544f2e4331f65b84927b247320b1ad8bf604547e29f99",
+      "canonical_sha256": "7489d9a4d4b8da41b4f544f2e4331f65b84927b247320b1ad8bf604547e29f99",
+      "parity_ok": true
+    },
+    {
+      "name": "agent-health",
+      "live_path": "/home/agent/bin/agent-health",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/agent-health",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "c96e167bf071cec40bc62e39b37f00b2d057aebeb835e40f735830176d2d906c",
+      "canonical_sha256": "c96e167bf071cec40bc62e39b37f00b2d057aebeb835e40f735830176d2d906c",
+      "parity_ok": true
+    },
+    {
+      "name": "agent-run-report",
+      "live_path": "/home/agent/bin/agent-run-report",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/agent-run-report",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "a4f083dfe17e859e9fed08189102743d9b040b86dc0d2c264f2fe458f4f4a076",
+      "canonical_sha256": "a4f083dfe17e859e9fed08189102743d9b040b86dc0d2c264f2fe458f4f4a076",
+      "parity_ok": true
+    },
+    {
+      "name": "agent-topic",
+      "live_path": "/home/agent/bin/agent-topic",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/agent-topic",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "5f83a38c3be48c6d077297bc50b8ee11ce867a75def29f663fc75059abe3fd63",
+      "canonical_sha256": "5f83a38c3be48c6d077297bc50b8ee11ce867a75def29f663fc75059abe3fd63",
+      "parity_ok": true
+    },
+    {
+      "name": "agent-usage",
+      "live_path": "/home/agent/bin/agent-usage",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/agent-usage",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "8c15a4655ed656d72552ec61432647a88cc14f3ada0bdd5dd60ad239b8b8dcbb",
+      "canonical_sha256": "8c15a4655ed656d72552ec61432647a88cc14f3ada0bdd5dd60ad239b8b8dcbb",
+      "parity_ok": true
+    },
+    {
+      "name": "apply-fix",
+      "live_path": "/home/agent/bin/apply-fix",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/apply-fix",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "bf7d660c09936e52d061ee06784cd2590f9601e978f9e429c9166a9e79d79bec",
+      "canonical_sha256": "bf7d660c09936e52d061ee06784cd2590f9601e978f9e429c9166a9e79d79bec",
+      "parity_ok": true
+    },
+    {
+      "name": "codex-frontdoor-preflight",
+      "live_path": "/home/agent/bin/codex-frontdoor-preflight",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/codex-frontdoor-preflight",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "917e72ba67a968cb4b024bf34de50ec601ff9dc68e05b8468eff7e8260143849",
+      "canonical_sha256": "917e72ba67a968cb4b024bf34de50ec601ff9dc68e05b8468eff7e8260143849",
+      "parity_ok": true
+    },
+    {
+      "name": "codex-jsonl-last",
+      "live_path": "/home/agent/bin/codex-jsonl-last",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/codex-jsonl-last",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "d2e4e257907cfd8f023f158648f51b4da2260f9d3ae855ea419de1eb63d414d1",
+      "canonical_sha256": "d2e4e257907cfd8f023f158648f51b4da2260f9d3ae855ea419de1eb63d414d1",
+      "parity_ok": true
+    },
+    {
+      "name": "codex-upgrade",
+      "live_path": "/home/agent/bin/codex-upgrade",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/codex-upgrade",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "cf70599a466a87ee69a847b0b820e530dfa9e7149a19a10b3bd2262f3e305e62",
+      "canonical_sha256": "cf70599a466a87ee69a847b0b820e530dfa9e7149a19a10b3bd2262f3e305e62",
+      "parity_ok": true
+    },
+    {
+      "name": "codex-upgrade-doctor",
+      "live_path": "/home/agent/bin/codex-upgrade-doctor",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/codex-upgrade-doctor",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "387150bc48b9bdb895d7c4220e6333c1b39cfb256316a04984956184ea137b0b",
+      "canonical_sha256": "387150bc48b9bdb895d7c4220e6333c1b39cfb256316a04984956184ea137b0b",
+      "parity_ok": true
+    },
+    {
+      "name": "ensure-topic-structure.sh",
+      "live_path": "/home/agent/bin/ensure-topic-structure.sh",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/ensure-topic-structure.sh",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "e4d459b81b07ba0d7972eaf95c8985fbfe3ea36d299d6cb2f36cc52a3458355b",
+      "canonical_sha256": "e4d459b81b07ba0d7972eaf95c8985fbfe3ea36d299d6cb2f36cc52a3458355b",
+      "parity_ok": true
+    },
+    {
+      "name": "graphmem",
+      "live_path": "/home/agent/bin/graphmem",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/graphmem",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "ced689dd249b3db66023f42f0f804b72db1d21ac992dc9b9dfaf47c9c93d09bf",
+      "canonical_sha256": "ced689dd249b3db66023f42f0f804b72db1d21ac992dc9b9dfaf47c9c93d09bf",
+      "parity_ok": true
+    },
+    {
+      "name": "graphmem-extract",
+      "live_path": "/home/agent/bin/graphmem-extract",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/graphmem-extract",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "50511ff9baba3f59e5f66f961c12bf7b80314fe35f6b122db50566bf708ea50d",
+      "canonical_sha256": "50511ff9baba3f59e5f66f961c12bf7b80314fe35f6b122db50566bf708ea50d",
+      "parity_ok": true
+    },
+    {
+      "name": "graphmem-recall",
+      "live_path": "/home/agent/bin/graphmem-recall",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/graphmem-recall",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "723baf8d8711f13c2b182433e297b5b31cb0af9a10fe943db8222ebba751fe01",
+      "canonical_sha256": "723baf8d8711f13c2b182433e297b5b31cb0af9a10fe943db8222ebba751fe01",
+      "parity_ok": true
+    },
+    {
+      "name": "install-ensure-topic-structure.sh",
+      "live_path": "/home/agent/bin/install-ensure-topic-structure.sh",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/install-ensure-topic-structure.sh",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "4947ff7d340e1bebdb33fce74af45e4cc6690a9158e5a163d4848d5f23d755ff",
+      "canonical_sha256": "4947ff7d340e1bebdb33fce74af45e4cc6690a9158e5a163d4848d5f23d755ff",
+      "parity_ok": true
+    },
+    {
+      "name": "memory",
+      "live_path": "/home/agent/bin/memory",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/memory",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "6b6650b97b27043261cf8f3fe9af320f2d97360df1c4d38e8c166e42097706af",
+      "canonical_sha256": "6b6650b97b27043261cf8f3fe9af320f2d97360df1c4d38e8c166e42097706af",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-eval",
+      "live_path": "/home/agent/bin/project-research-eval",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-eval",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "b3b6f060c9f4405fef3914ff1f0a3838d77fa365c6d5013a50e24897a550a9da",
+      "canonical_sha256": "b3b6f060c9f4405fef3914ff1f0a3838d77fa365c6d5013a50e24897a550a9da",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step17.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step17.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step17.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "18f8b256d32fc72e56b893a6d9c161559c2f42579fb9d6104f3d3bb8f074a4e9",
+      "canonical_sha256": "18f8b256d32fc72e56b893a6d9c161559c2f42579fb9d6104f3d3bb8f074a4e9",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step18.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step18.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step18.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "ba8ec8396ab8b11d056fdc4d8e96412994f3efb231b456a2733cd17d79058803",
+      "canonical_sha256": "ba8ec8396ab8b11d056fdc4d8e96412994f3efb231b456a2733cd17d79058803",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step19.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step19.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step19.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "385c47f5a60f44d991d9fd74c5a86b7f4eb3c54ca9400c8fa6dab5c7e4dad725",
+      "canonical_sha256": "385c47f5a60f44d991d9fd74c5a86b7f4eb3c54ca9400c8fa6dab5c7e4dad725",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step20.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step20.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step20.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "a2800e88e16ee8986953b96886f37981a1b073aa561a54052164db398cb97bb5",
+      "canonical_sha256": "a2800e88e16ee8986953b96886f37981a1b073aa561a54052164db398cb97bb5",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step21.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step21.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step21.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "1131880acb14534726ffb8799b447400bd2e07e926d8b26da5701d3ac0c8632c",
+      "canonical_sha256": "1131880acb14534726ffb8799b447400bd2e07e926d8b26da5701d3ac0c8632c",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step22.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step22.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step22.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "a64c9f51821d316cc05aa9ab164563d9cdbad3eaae2bd88915dbdfe7e2ae2019",
+      "canonical_sha256": "a64c9f51821d316cc05aa9ab164563d9cdbad3eaae2bd88915dbdfe7e2ae2019",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step23.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step23.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step23.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "91b64804e0227697b4c26f1256c2c8d463e5fe5211e33a65df58db84a803a39a",
+      "canonical_sha256": "91b64804e0227697b4c26f1256c2c8d463e5fe5211e33a65df58db84a803a39a",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step24.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step24.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step24.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "86bbeb20aa691a3b12e502e1290f198fbb2567cb972e7d0f94a93a09cdc54678",
+      "canonical_sha256": "86bbeb20aa691a3b12e502e1290f198fbb2567cb972e7d0f94a93a09cdc54678",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step26.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step26.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step26.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "adbfa6877175e1c18cf91d3061e7a3c863609a246266a61f2c90cf4f23a6928e",
+      "canonical_sha256": "adbfa6877175e1c18cf91d3061e7a3c863609a246266a61f2c90cf4f23a6928e",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step27.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step27.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step27.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "e2c24fa3cd689f6391d509f6dcefe1c450a11cc29254ed35c26facb93dc04faa",
+      "canonical_sha256": "e2c24fa3cd689f6391d509f6dcefe1c450a11cc29254ed35c26facb93dc04faa",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step28.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step28.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step28.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "6b616617c6f4b960647223be1d9e34f0703620c8ac899c23c16f29370e127f3e",
+      "canonical_sha256": "6b616617c6f4b960647223be1d9e34f0703620c8ac899c23c16f29370e127f3e",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-fetch-extract-step29.py",
+      "live_path": "/home/agent/bin/project-research-fetch-extract-step29.py",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-fetch-extract-step29.py",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "454283b144b6d68754df01a7f84c53369aa3992422fa9a97bd6d027edb182ec5",
+      "canonical_sha256": "454283b144b6d68754df01a7f84c53369aa3992422fa9a97bd6d027edb182ec5",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-regress",
+      "live_path": "/home/agent/bin/project-research-regress",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-regress",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "199b6458349eb1edca52b32bbb83a08c8ffda76fd26bf978cdabdc29780c18de",
+      "canonical_sha256": "199b6458349eb1edca52b32bbb83a08c8ffda76fd26bf978cdabdc29780c18de",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-regress-full",
+      "live_path": "/home/agent/bin/project-research-regress-full",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-regress-full",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "c5db5d708d39cf14e913ac2d2b86de97282f2b486d697fe667ce02ccbf4f4886",
+      "canonical_sha256": "c5db5d708d39cf14e913ac2d2b86de97282f2b486d697fe667ce02ccbf4f4886",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-run",
+      "live_path": "/home/agent/bin/project-research-run",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-run",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "6dd63cdb093094a7d0eb1929ae0983b6cd3851565621f8068a90a38ccece2701",
+      "canonical_sha256": "6dd63cdb093094a7d0eb1929ae0983b6cd3851565621f8068a90a38ccece2701",
+      "parity_ok": true
+    },
+    {
+      "name": "project-research-run.inner-step17-real-fetch-extraction",
+      "live_path": "/home/agent/bin/project-research-run.inner-step17-real-fetch-extraction",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-research-run.inner-step17-real-fetch-extraction",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "150a763edf82c1cde019eab635eb0ab538f40441473e3fe77ad58ac80ee56a6d",
+      "canonical_sha256": "150a763edf82c1cde019eab635eb0ab538f40441473e3fe77ad58ac80ee56a6d",
+      "parity_ok": true
+    },
+    {
+      "name": "project-state-refresh",
+      "live_path": "/home/agent/bin/project-state-refresh",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/project-state-refresh",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "2c581ab65afe024d668625475f786d85c07c05c7f78ae38db3c661dc2016d5d9",
+      "canonical_sha256": "2c581ab65afe024d668625475f786d85c07c05c7f78ae38db3c661dc2016d5d9",
+      "parity_ok": true
+    },
+    {
+      "name": "repo-audit-overview.sh",
+      "live_path": "/home/agent/bin/repo-audit-overview.sh",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/repo-audit-overview.sh",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "63bc15d6062811cdae6c6a14029b3a7d832dfb153742f7f2b29219436042f40c",
+      "canonical_sha256": "63bc15d6062811cdae6c6a14029b3a7d832dfb153742f7f2b29219436042f40c",
+      "parity_ok": true
+    },
+    {
+      "name": "server-full-inventory.sh",
+      "live_path": "/home/agent/bin/server-full-inventory.sh",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/server-full-inventory.sh",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "e5d33e97c54817c0e637a9f3bcf761d15b21698e630f460c8fd3218f6c485cda",
+      "canonical_sha256": "e5d33e97c54817c0e637a9f3bcf761d15b21698e630f460c8fd3218f6c485cda",
+      "parity_ok": true
+    },
+    {
+      "name": "sync-project-research-v2-skill-json.sh",
+      "live_path": "/home/agent/bin/sync-project-research-v2-skill-json.sh",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/sync-project-research-v2-skill-json.sh",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "30c03f04f6172248d157c13431ef027cc456aecc190332adc65dab030ae62d3d",
+      "canonical_sha256": "30c03f04f6172248d157c13431ef027cc456aecc190332adc65dab030ae62d3d",
+      "parity_ok": true
+    },
+    {
+      "name": "validate-project-research-run",
+      "live_path": "/home/agent/bin/validate-project-research-run",
+      "canonical_path": "/home/agent/agents/_runtime/canonical/bin/validate-project-research-run",
+      "live_exists": true,
+      "canonical_exists": true,
+      "live_sha256": "4bd561c45669ab0d67092f243d569c70ba98aa3a5c725426a3a2fc36f94286ab",
+      "canonical_sha256": "4bd561c45669ab0d67092f243d569c70ba98aa3a5c725426a3a2fc36f94286ab",
+      "parity_ok": true
+    }
+  ]
+}

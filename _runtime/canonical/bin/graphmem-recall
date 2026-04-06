@@ -1,0 +1,76 @@
+#!/home/agent/.venvs/memory/bin/python
+import os, re, sys
+from neo4j import GraphDatabase
+
+URI  = os.getenv("NEO4J_URI", "bolt://127.0.0.1:7687")
+USER = os.getenv("NEO4J_USER", "neo4j")
+PWD  = os.getenv("NEO4J_PASS")
+
+if not PWD:
+    print("ERROR: NEO4J_PASS is required", file=sys.stderr)
+    sys.exit(2)
+
+query = " ".join(sys.argv[1:]).strip()
+q = query.lower()
+
+def tokens(s: str):
+    return set(t for t in re.split(r"[^0-9a-zа-яё]+", (s or "").lower()) if len(t) >= 2)
+
+qt = tokens(q)
+
+drv = GraphDatabase.driver(URI, auth=(USER, PWD))
+with drv.session() as s:
+    ents = s.run("MATCH (e:Entity) RETURN e.key AS key, e.name AS name, e.type AS type").data()
+
+matched = []
+for e in ents:
+    name = (e.get("name") or "")
+    nl = name.lower()
+    nt = tokens(nl)
+    if not query:
+        continue
+    if (nl and nl in q) or (q and q in nl) or (qt and nt and (qt & nt)):
+        matched.append(e)
+
+# heuristics for 3X-UI & SSH
+if ("3x" in qt) or ("ui" in qt) or ("3x-ui" in q) or ("x-ui" in q):
+    for e in ents:
+        name = (e.get("name") or "").lower()
+        if "3x" in name or "x-ui" in name or "panel" in name or "subscriptions" in name:
+            matched.append(e)
+
+matched = matched[:20]
+keys = [e["key"] for e in matched if e.get("key")]
+
+print("# Graph recall")
+print(f"- query: {query!r}")
+print()
+
+if keys:
+    print("## Matched entities")
+    for e in matched[:12]:
+        print(f"- {e.get('type')} :: {e.get('name')}  ({e.get('key')})")
+    print()
+
+    with drv.session() as s:
+        rows = s.run(
+            '''
+            MATCH (a:Entity)-[r]->(b:Entity)
+            WHERE a.key IN $keys OR b.key IN $keys
+            RETURN a.name AS a, type(r) AS rel, b.name AS b,
+                   r.confidence AS conf, r.source AS src
+            ORDER BY coalesce(r.confidence, 0.0) DESC
+            LIMIT 60
+            ''',
+            keys=keys
+        ).data()
+
+    print("## Relations (1-hop)")
+    for r in rows:
+        conf = r.get("conf")
+        conf_s = f"{conf:.2f}" if isinstance(conf, (int, float)) else "?"
+        src = r.get("src") or ""
+        print(f"- {r.get('a')} --{r.get('rel')}--> {r.get('b')}  (conf={conf_s}, src={src})")
+else:
+    print("## No matches")
+drv.close()

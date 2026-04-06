@@ -1,0 +1,51 @@
+{
+  "accepted_caveats_registry": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/definitions/global-managed-policy-registry-v1.json#accepted_caveats",
+  "allowed_workflow_classes": [
+    "canonical_managed_eval",
+    "clean_rerun",
+    "compare_runs",
+    "current_run_review",
+    "historical_review",
+    "promotion_preview",
+    "readiness_review",
+    "topic_bootstrap",
+    "topic_migration"
+  ],
+  "canonical_managed_path": [
+    "generate_review_pack.py",
+    "summaries/pack-selection-trace.json",
+    "summaries/pack-selection-manifest.json",
+    "summaries/trial-plan.json",
+    "run_skill_trial_matrix.py",
+    "completed review files",
+    "evaluate_readiness.py",
+    "promotion-preview or deliberate adoption/promotion"
+  ],
+  "codex_frontdoor_binding": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/definitions/global-managed-policy-registry-v1.json#codex_frontdoor_binding",
+  "codex_frontdoor_preflight": "/home/agent/bin/codex-frontdoor-preflight",
+  "default_workflow_class": "canonical_managed_eval",
+  "do_not_reopen_registry": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/definitions/global-managed-policy-registry-v1.json#do_not_reopen",
+  "format": "openclaw-managed-topic-defaults-v1",
+  "frontdoor_intent_classes": [
+    "canonical_managed_eval",
+    "clean_rerun",
+    "compare_runs",
+    "current_run_review",
+    "current_state_lookup",
+    "general_project_analysis",
+    "historical_review",
+    "promotion_preview",
+    "readiness_review",
+    "research_request",
+    "topic_bootstrap",
+    "topic_migration"
+  ],
+  "launcher_entrypoint": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py",
+  "managed_standard": "global-managed-canonical-v1",
+  "memory_fabric_definition": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/definitions/global-managed-memory-fabric-v1.json",
+  "override_requires_reason": true,
+  "policy_registry": "/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/definitions/global-managed-policy-registry-v1.json",
+  "server_ai_entrypoint": "/home/agent/bin/agent-exec",
+  "topic_name": "core",
+  "topic_root": "/home/agent/agents/core"
+}

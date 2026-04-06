@@ -1,0 +1,812 @@
+{
+  "version": "openclaw-global-managed-memory-fabric-v1",
+  "selection_roles": [
+    "primary",
+    "supporting",
+    "excluded",
+    "human_only",
+    "unavailable"
+  ],
+  "source_classes": {
+    "policy_registry": {
+      "authority": "canonical",
+      "description": "Global managed policy registry for launcher, coverage, override, caveat, and do-not-reopen defaults."
+    },
+    "memory_fabric_definition": {
+      "authority": "canonical",
+      "description": "Machine-readable source-class and workflow policy definition for the managed memory fabric."
+    },
+    "project_steering": {
+      "authority": "canonical",
+      "description": "Core steering and precedence model."
+    },
+    "shared_agents": {
+      "authority": "canonical",
+      "description": "Shared repo rules inherited by topic-level work."
+    },
+    "shared_readme": {
+      "authority": "supporting",
+      "description": "Shared project navigation layer."
+    },
+    "topic_agents": {
+      "authority": "canonical",
+      "description": "Topic-local rules for the active project or topic root."
+    },
+    "topic_readme": {
+      "authority": "supporting",
+      "description": "Topic-local navigation and default path hints."
+    },
+    "topic_managed_defaults": {
+      "authority": "canonical",
+      "description": "Managed-default hooks created by bootstrap or migration."
+    },
+    "topic_todo": {
+      "authority": "canonical",
+      "description": "Topic-local next-step queue."
+    },
+    "topic_log": {
+      "authority": "canonical",
+      "description": "Topic-local durable checkpoint log."
+    },
+    "topic_memory_context": {
+      "authority": "canonical",
+      "description": "Topic-local current context snapshot and durable orientation note."
+    },
+    "topic_memory_index": {
+      "authority": "canonical",
+      "description": "Durable topic memory pointer index."
+    },
+    "topic_memory_facts": {
+      "authority": "canonical",
+      "description": "Durable topic-level factual memory."
+    },
+    "topic_memory_refs": {
+      "authority": "canonical",
+      "description": "Topic-local reference pointer layer."
+    },
+    "topic_memory_lessons": {
+      "authority": "canonical",
+      "description": "Durable topic-level lessons."
+    },
+    "core_memory_index": {
+      "authority": "supporting",
+      "description": "Core memory pointer layer used as broad project recall."
+    },
+    "core_memory_facts": {
+      "authority": "supporting",
+      "description": "Core durable facts supporting broader planning."
+    },
+    "core_memory_lessons": {
+      "authority": "supporting",
+      "description": "Core durable lessons for reuse and guardrails."
+    },
+    "run_review_pack_manifest": {
+      "authority": "canonical",
+      "description": "Current run review-pack manifest."
+    },
+    "run_trial_plan": {
+      "authority": "canonical",
+      "description": "Current run trial-plan manifest."
+    },
+    "run_pack_selection_manifest": {
+      "authority": "canonical",
+      "description": "Current run machine-readable pack-selection manifest."
+    },
+    "run_pack_selection_trace": {
+      "authority": "canonical",
+      "description": "Current run machine-readable pack-selection trace."
+    },
+    "run_matrix_manifest": {
+      "authority": "canonical",
+      "description": "Current run matrix execution manifest."
+    },
+    "run_readiness_result": {
+      "authority": "canonical",
+      "description": "Current run readiness result."
+    },
+    "run_case_file": {
+      "authority": "canonical",
+      "description": "Current run case file."
+    },
+    "run_review_file": {
+      "authority": "derived",
+      "description": "Completed or placeholder review file inside the current run."
+    },
+    "run_result_matrix": {
+      "authority": "derived",
+      "description": "Human-readable result matrix inside a run root."
+    },
+    "run_verdict_artifact": {
+      "authority": "derived",
+      "description": "Human-readable verdict artifact inside a run root."
+    },
+    "run_repeated_signal_artifact": {
+      "authority": "derived",
+      "description": "Human-readable repeated-signal artifact inside a run root."
+    },
+    "experiment_registry": {
+      "authority": "supporting",
+      "description": "Experiment-intelligence registry for broader line-level recall."
+    },
+    "experiment_patterns": {
+      "authority": "supporting",
+      "description": "Experiment-intelligence pattern extraction."
+    },
+    "research_brain_state": {
+      "authority": "supporting",
+      "description": "Research-brain state artifact."
+    },
+    "research_brain_portfolio": {
+      "authority": "supporting",
+      "description": "Research-brain next-step portfolio."
+    },
+    "vault_current_status": {
+      "authority": "human-facing",
+      "description": "Human-readable synced current-project status note."
+    },
+    "vault_session_summary": {
+      "authority": "human-facing",
+      "description": "Human-readable historical session notes."
+    },
+    "accepted_caveat_registry": {
+      "authority": "canonical",
+      "description": "Accepted caveat registry section inside the global policy registry."
+    },
+    "do_not_reopen_registry": {
+      "authority": "canonical",
+      "description": "Do-not-reopen registry section inside the global policy registry."
+    },
+    "graph_memory_connector": {
+      "authority": "helper",
+      "description": "Graph/helper memory connector surface exposed through the local `graphmem-recall` runtime when Neo4j credentials are available."
+    },
+    "vector_memory_connector": {
+      "authority": "helper",
+      "description": "Vector/semantic retrieval surface if exposed through a callable local runtime later."
+    },
+    "operator_agents": {
+      "authority": "canonical",
+      "description": "Higher-precedence Codex operator rules from the server home."
+    },
+    "shared_security": {
+      "authority": "canonical",
+      "description": "Shared security baseline for approvals, secrets, and destructive actions."
+    },
+    "shared_news": {
+      "authority": "supporting",
+      "description": "Shared high-level project news and rollout markers."
+    },
+    "shared_memory_index": {
+      "authority": "canonical",
+      "description": "Shared cross-topic memory index and project canon pointers."
+    },
+    "runtime_readme": {
+      "authority": "canonical",
+      "description": "Governed runtime layer overview and workflow expectations."
+    },
+    "runtime_registry": {
+      "authority": "canonical",
+      "description": "Machine-readable governed runtime registry for the protected server command surface."
+    },
+    "runtime_manifest": {
+      "authority": "canonical",
+      "description": "Parity manifest for live and governed server entrypoints."
+    },
+    "research_brain_rules": {
+      "authority": "canonical",
+      "description": "Research-brain routing rules and bounded search-depth policy."
+    },
+    "openclaw_workspace_memory": {
+      "authority": "supporting",
+      "description": "OpenClaw workspace bootstrap memory and read-order hints."
+    },
+    "openclaw_workspace_tools": {
+      "authority": "supporting",
+      "description": "OpenClaw workspace tool-routing rules for retrieval, research, and vault bridges."
+    },
+    "retrieval_latest_answer": {
+      "authority": "derived",
+      "description": "Best current retrieval-execution answer artifact."
+    },
+    "research_latest_summary": {
+      "authority": "derived",
+      "description": "Best current bounded research summary artifact."
+    },
+    "query_memory_snapshot": {
+      "authority": "derived",
+      "description": "Per-request memory snapshot produced by the local memory runtime for the selected topic."
+    },
+    "query_graph_recall": {
+      "authority": "helper",
+      "description": "Per-request graph/helper recall produced by the local graphmem runtime when credentials are available."
+    }
+  },
+  "workflow_policies": {
+    "canonical_managed_eval": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "topic_agents",
+        "topic_readme",
+        "topic_managed_defaults",
+        "topic_todo",
+        "topic_log",
+        "topic_memory_context",
+        "topic_memory_index",
+        "topic_memory_facts",
+        "topic_memory_refs",
+        "topic_memory_lessons",
+        "run_review_pack_manifest",
+        "run_trial_plan",
+        "run_pack_selection_manifest",
+        "run_pack_selection_trace",
+        "run_case_file"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "experiment_registry",
+        "experiment_patterns",
+        "research_brain_state",
+        "research_brain_portfolio",
+        "vault_current_status",
+        "shared_agents",
+        "shared_readme",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "runtime_manifest",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [
+        "run_review_file",
+        "run_result_matrix",
+        "run_verdict_artifact",
+        "run_repeated_signal_artifact"
+      ],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    },
+    "historical_review": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "topic_agents",
+        "topic_readme",
+        "topic_memory_context",
+        "topic_memory_index",
+        "topic_memory_facts",
+        "topic_memory_refs",
+        "topic_memory_lessons",
+        "run_review_pack_manifest",
+        "run_trial_plan",
+        "run_pack_selection_manifest",
+        "run_pack_selection_trace",
+        "run_matrix_manifest",
+        "run_review_file",
+        "run_result_matrix",
+        "run_verdict_artifact",
+        "run_repeated_signal_artifact",
+        "run_readiness_result"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "experiment_registry",
+        "experiment_patterns",
+        "research_brain_state",
+        "research_brain_portfolio",
+        "vault_current_status",
+        "vault_session_summary",
+        "shared_agents",
+        "shared_readme",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "runtime_manifest",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [],
+      "human_only": []
+    },
+    "current_run_review": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "topic_agents",
+        "topic_memory_context",
+        "topic_memory_index",
+        "topic_memory_facts",
+        "topic_memory_refs",
+        "topic_memory_lessons",
+        "run_review_pack_manifest",
+        "run_trial_plan",
+        "run_pack_selection_manifest",
+        "run_pack_selection_trace",
+        "run_matrix_manifest",
+        "run_review_file",
+        "run_readiness_result"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "experiment_registry",
+        "research_brain_state",
+        "vault_current_status",
+        "shared_agents",
+        "shared_readme",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "runtime_manifest",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [
+        "run_verdict_artifact",
+        "run_repeated_signal_artifact"
+      ],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    },
+    "readiness_review": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "topic_agents",
+        "topic_readme",
+        "topic_memory_context",
+        "topic_memory_index",
+        "topic_memory_facts",
+        "topic_memory_refs",
+        "topic_memory_lessons",
+        "run_review_pack_manifest",
+        "run_trial_plan",
+        "run_pack_selection_manifest",
+        "run_pack_selection_trace",
+        "run_matrix_manifest",
+        "run_review_file"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "run_readiness_result",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "experiment_registry",
+        "research_brain_state",
+        "vault_current_status",
+        "shared_agents",
+        "shared_readme",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "runtime_manifest",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [
+        "run_verdict_artifact",
+        "run_repeated_signal_artifact"
+      ],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    },
+    "compare_runs": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "topic_agents",
+        "topic_memory_context",
+        "topic_memory_index",
+        "run_review_pack_manifest",
+        "run_trial_plan",
+        "run_pack_selection_manifest",
+        "run_pack_selection_trace",
+        "run_matrix_manifest",
+        "run_review_file",
+        "run_readiness_result"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_index",
+        "core_memory_facts",
+        "experiment_registry",
+        "research_brain_state",
+        "vault_current_status",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "runtime_manifest",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [
+        "run_verdict_artifact"
+      ],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    },
+    "clean_rerun": {
+      "contamination_sensitive": true,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "topic_agents",
+        "topic_readme",
+        "topic_managed_defaults",
+        "topic_memory_index",
+        "runtime_manifest",
+        "run_case_file"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_index",
+        "core_memory_facts",
+        "shared_agents",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot"
+      ],
+      "excluded": [
+        "topic_memory_context",
+        "topic_memory_refs",
+        "run_review_pack_manifest",
+        "run_trial_plan",
+        "run_pack_selection_manifest",
+        "run_pack_selection_trace",
+        "run_matrix_manifest",
+        "run_review_file",
+        "run_result_matrix",
+        "run_verdict_artifact",
+        "run_repeated_signal_artifact",
+        "run_readiness_result",
+        "experiment_registry",
+        "experiment_patterns",
+        "research_brain_state",
+        "research_brain_portfolio",
+        "query_graph_recall"
+      ],
+      "human_only": [
+        "vault_current_status",
+        "vault_session_summary"
+      ]
+    },
+    "promotion_preview": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "topic_agents",
+        "topic_readme",
+        "topic_memory_context",
+        "topic_memory_index",
+        "run_review_pack_manifest",
+        "run_trial_plan",
+        "run_pack_selection_manifest",
+        "run_pack_selection_trace",
+        "run_matrix_manifest",
+        "run_readiness_result",
+        "run_review_file"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_index",
+        "core_memory_facts",
+        "experiment_registry",
+        "research_brain_state",
+        "vault_current_status",
+        "shared_agents",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "runtime_manifest",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    },
+    "topic_bootstrap": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "shared_agents",
+        "shared_readme",
+        "core_memory_index",
+        "runtime_manifest"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot"
+      ],
+      "excluded": [],
+      "human_only": []
+    },
+    "topic_migration": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "project_steering",
+        "shared_agents",
+        "shared_readme",
+        "topic_agents",
+        "topic_readme",
+        "topic_todo",
+        "topic_log",
+        "topic_memory_context",
+        "topic_memory_index",
+        "topic_memory_facts",
+        "topic_memory_refs",
+        "topic_memory_lessons"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "operator_agents",
+        "shared_security",
+        "shared_memory_index",
+        "shared_news",
+        "runtime_registry",
+        "runtime_manifest",
+        "research_brain_rules",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "query_memory_snapshot"
+      ],
+      "excluded": [],
+      "human_only": []
+    },
+    "current_state_lookup": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "operator_agents",
+        "project_steering",
+        "shared_agents",
+        "shared_readme",
+        "shared_security",
+        "shared_memory_index",
+        "runtime_readme",
+        "runtime_registry",
+        "runtime_manifest",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "retrieval_latest_answer"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "shared_news",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "research_latest_summary",
+        "research_brain_state",
+        "research_brain_rules",
+        "vault_current_status",
+        "topic_agents",
+        "topic_readme",
+        "topic_managed_defaults",
+        "topic_memory_context",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    },
+    "research_request": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "operator_agents",
+        "project_steering",
+        "shared_agents",
+        "shared_readme",
+        "shared_security",
+        "shared_memory_index",
+        "topic_agents",
+        "topic_readme",
+        "topic_managed_defaults",
+        "topic_todo",
+        "topic_log",
+        "topic_memory_context",
+        "topic_memory_index",
+        "topic_memory_facts",
+        "topic_memory_refs",
+        "topic_memory_lessons",
+        "research_brain_state",
+        "research_brain_portfolio",
+        "research_brain_rules"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "shared_news",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "experiment_registry",
+        "experiment_patterns",
+        "runtime_registry",
+        "runtime_manifest",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "vault_current_status",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [
+        "run_review_file",
+        "run_result_matrix",
+        "run_verdict_artifact",
+        "run_repeated_signal_artifact"
+      ],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    },
+    "general_project_analysis": {
+      "contamination_sensitive": false,
+      "primary": [
+        "policy_registry",
+        "memory_fabric_definition",
+        "operator_agents",
+        "project_steering",
+        "shared_agents",
+        "shared_readme",
+        "shared_security",
+        "shared_memory_index",
+        "topic_agents",
+        "topic_readme",
+        "topic_managed_defaults",
+        "topic_todo",
+        "topic_log",
+        "topic_memory_context",
+        "topic_memory_index",
+        "topic_memory_facts",
+        "topic_memory_refs",
+        "topic_memory_lessons",
+        "runtime_registry",
+        "runtime_manifest"
+      ],
+      "supporting": [
+        "accepted_caveat_registry",
+        "do_not_reopen_registry",
+        "shared_news",
+        "core_memory_index",
+        "core_memory_facts",
+        "core_memory_lessons",
+        "retrieval_latest_answer",
+        "research_latest_summary",
+        "research_brain_state",
+        "research_brain_portfolio",
+        "research_brain_rules",
+        "experiment_registry",
+        "experiment_patterns",
+        "openclaw_workspace_memory",
+        "openclaw_workspace_tools",
+        "vault_current_status",
+        "query_memory_snapshot",
+        "query_graph_recall"
+      ],
+      "excluded": [
+        "run_verdict_artifact",
+        "run_repeated_signal_artifact"
+      ],
+      "human_only": [
+        "vault_session_summary"
+      ]
+    }
+  }
+}

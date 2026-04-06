@@ -1,0 +1,10 @@
+cases:
+  - id: mixed_sales_stack
+    prompt: "Система аналитики продаж, dashboard, workflow, KPI, website"
+    expected_mode: "quick"
+    expected_targets:
+      - similar_solutions
+      - official_docs
+      - recurring_risks
+      - platform_choices
+      - dashboard_patterns

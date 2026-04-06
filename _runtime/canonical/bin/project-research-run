@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# STEP17_REAL_FETCH_EXTRACTION_WRAPPER_V3_PASS_THROUGH
+set -euo pipefail
+
+if [[ "${OPENCLAW_META_LAUNCHED:-0}" != "1" && "${OPENCLAW_MANAGED_LAUNCHED:-0}" != "1" ]]; then
+  printf '%s\n' "COMPATIBILITY_WARNING=project-research-run_direct_invocation" >&2
+  printf '%s\n' "Use /home/agent/bin/agent-exec as the default human entrypoint for managed research requests." >&2
+fi
+
+exec /home/agent/bin/project-research-run.inner-step17-real-fetch-extraction "$@"

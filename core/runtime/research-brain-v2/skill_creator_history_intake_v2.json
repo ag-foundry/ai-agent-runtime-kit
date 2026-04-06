@@ -1,0 +1,43 @@
+{
+  "format": "core-research-brain-intake-v2",
+  "intake_id": "skill-creator-history-bootstrap-v2",
+  "task_kind": "meta-layer-build",
+  "topic": "core",
+  "focus_area": "skill-creator-history",
+  "history_scope": "skill-creator-usefulness-delta-runtime-governance",
+  "target_line_id": null,
+  "deferred_resume_line_id": "runtime-governance-net-new",
+  "requires_new_experiment_run": false,
+  "needs_external_sources": false,
+  "needs_cross_topic_search": false,
+  "proof_class_change": false,
+  "paused_line_ids": [
+    "prompt-contained-net-new",
+    "promotion-bundle-admission-guard-portability-followups"
+  ],
+  "requested_capabilities": [
+    "task intake classification",
+    "layered search-depth control",
+    "experiment registry usage as steering input",
+    "pattern / blocker / negative-result enforcement",
+    "next-step portfolio generation",
+    "execution-class routing",
+    "post-run retrospective writeback"
+  ],
+  "constraints": [
+    "Do not continue the paused skills line in this phase.",
+    "Do not build a broad new framework.",
+    "Do not perform a memory redesign.",
+    "Use existing durable steering and memory as first-class inputs."
+  ],
+  "seed_artifacts": [
+    "/home/agent/agents/core/artifacts/experiment-intelligence/skill-creator-history-v1/experiment-registry-v1.json",
+    "/home/agent/agents/core/artifacts/experiment-intelligence/skill-creator-history-v1/pattern-extraction-v1.json",
+    "/home/agent/agents/core/artifacts/experiment-intelligence/skill-creator-history-v1/next-step-portfolio-v1.json",
+    "/home/agent/agents/core/PROJECT-STEERING.md",
+    "/home/agent/agents/core/TODO.md",
+    "/home/agent/agents/core/memory/facts.md",
+    "/home/agent/agents/core/memory/lessons.md"
+  ],
+  "durable_writeback_required": true
+}

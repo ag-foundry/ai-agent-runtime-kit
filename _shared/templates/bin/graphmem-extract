@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 3 ]]; then
+  echo "Usage: graphmem-extract <topic> <source_path> <out_json_path>"
+  exit 2
+fi
+
+TOPIC="$1"
+SRC="$2"
+OUT="$3"
+
+DIR="$HOME/agents/$TOPIC"
+[[ -d "$DIR" ]] || { echo "ERROR: topic dir not found: $DIR"; exit 1; }
+
+RUNS="$DIR/runs"
+mkdir -p "$RUNS"
+
+RUN_ID="$(date +%F-%H%M%S)-extract-$$"
+JSONL="$RUNS/$RUN_ID.extract.jsonl"
+ERR="$RUNS/$RUN_ID.extract.stderr.log"
+
+cd "$DIR"
+
+PROMPT=$(cat <<EOF
+Read the file: $SRC
+
+Return ONLY valid JSON with this schema:
+{
+  "facts": [
+    {
+      "subject": {"type": "<EntityType>", "name": "<EntityName>", "props": {}},
+      "predicate": "<RELATION_IN_CAPS_WITH_UNDERSCORES>",
+      "object": {"type": "<EntityType>", "name": "<EntityName>", "props": {}},
+      "confidence": 0.0
+    }
+  ]
+}
+
+Rules:
+- Output ONLY JSON (no markdown, no code fences, no commentary).
+- Prefer stable infra entities: Netcup server, SSH, Xray, Nginx, Qdrant, Neo4j, Postgres, ports like "42211/tcp", "443/tcp".
+- Put numeric details into props when useful.
+- If uncertain, lower confidence.
+
+Now extract facts.
+EOF
+)
+
+set +e
+codex exec --json --sandbox read-only --skip-git-repo-check "$PROMPT" 2>"$ERR" | tee "$JSONL" >/dev/null
+RC=${PIPESTATUS[0]}
+set -e
+if [[ $RC -ne 0 ]]; then
+  echo "ERROR: codex exec failed (rc=$RC)"
+  sed -n '1,220p' "$ERR" || true
+  exit $RC
+fi
+
+# Build output JSON from JSONL last message
+"$HOME/bin/codex-jsonl-last" "$JSONL" > "$OUT"
+
+# Validate JSON
+python3 -m json.tool "$OUT" >/dev/null
+
+echo "OK: wrote $OUT"

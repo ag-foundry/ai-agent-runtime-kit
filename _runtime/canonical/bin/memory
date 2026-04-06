@@ -1,0 +1,650 @@
+#!/home/agent/.venvs/memory/bin/python
+import warnings
+warnings.filterwarnings(
+    'ignore',
+    message=r'The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling.*',
+)
+warnings.filterwarnings(
+    'ignore',
+    message=r'`query` method has been deprecated.*',
+)
+
+import argparse, os, re, uuid
+from datetime import datetime
+from pathlib import Path
+from types import SimpleNamespace
+
+
+def fast_query_once(c, collection, query_text, query_filter, limit):
+    """
+    Stable semantic search for Qdrant across versions:
+    - Uses query_points() (no deprecated .query)
+    - Auto-detects vector name for collections with named vectors (using=...)
+    - Returns objects with .score .document .metadata .id (backward-compatible)
+    """
+    import os
+    import inspect
+    from qdrant_client import models
+
+    def _detect_using_vector_name():
+        try:
+            info = c.get_collection(collection)
+            v = info.config.params.vectors
+
+            # Possible shapes depending on client versions
+            if hasattr(v, "vectors") and isinstance(v.vectors, dict) and v.vectors:
+                return next(iter(v.vectors.keys()))
+            if hasattr(v, "__root__") and isinstance(v.__root__, dict) and v.__root__:
+                return next(iter(v.__root__.keys()))
+            if isinstance(v, dict) and v:
+                return next(iter(v.keys()))
+
+            # single unnamed vector config -> no "using" needed
+            return None
+        except Exception:
+            return None
+
+    using_name = _detect_using_vector_name()
+
+    # Detect signature
+    try:
+        sig = inspect.signature(c.query_points)
+    except Exception:
+        sig = None
+
+    qp = None
+
+    # Path A: wrapper supports query_text (some versions)
+    if sig and "query_text" in sig.parameters:
+        kwargs = dict(
+            collection_name=collection,
+            query_text=query_text,
+            query_filter=query_filter,
+            limit=limit,
+        )
+        # some wrappers accept using, some not -> try
+        if using_name:
+            kwargs["using"] = using_name
+        try:
+            qp = c.query_points(**kwargs, with_payload=True)
+        except TypeError:
+            qp = c.query_points(**kwargs)
+    else:
+        # Path B: Document inference
+        doc_kwargs = {"text": query_text}
+        mf = getattr(models.Document, "model_fields", None)
+        if isinstance(mf, dict) and "model" in mf:
+            doc_kwargs["model"] = (
+                os.environ.get("QDRANT_DOC_MODEL")
+                or os.environ.get("QDRANT_INFERENCE_MODEL")
+                or "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+            )
+        doc = models.Document(**doc_kwargs)
+
+        kwargs = dict(
+            collection_name=collection,
+            query=doc,
+            query_filter=query_filter,
+            limit=limit,
+        )
+        if using_name:
+            kwargs["using"] = using_name
+
+        try:
+            qp = c.query_points(**kwargs, with_payload=True)
+        except TypeError:
+            qp = c.query_points(**kwargs)
+
+    pts = getattr(qp, "points", qp)
+
+    out = []
+    for p in pts:
+        payload = getattr(p, "payload", None) or {}
+        doc_text = payload.get("document") or payload.get("text") or payload.get("page_content") or ""
+        md = payload.get("metadata")
+        if md is None:
+            md = {k: v for k, v in payload.items() if k not in ("document", "text", "page_content")}
+
+        out.append(
+            SimpleNamespace(
+                score=getattr(p, "score", None),
+                document=doc_text,
+                metadata=md,
+                id=getattr(p, "id", None),
+            )
+        )
+    return out
+
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://127.0.0.1:6333")
+COLLECTION = os.environ.get("QDRANT_COLLECTION", "memory_notes_v1")
+MODEL = os.environ.get("QDRANT_EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+
+HOME = Path.home()
+AGENTS_DIR = HOME / "agents"
+SHARED_DIR = AGENTS_DIR / "_shared" / "memory"
+
+def qdrant():
+    c = QdrantClient(url=QDRANT_URL)
+    c.set_model(MODEL)
+    return c
+
+def build_filter(topic: str):
+    return Filter(
+        should=[
+            FieldCondition(key="scope", match=MatchValue(value="shared")),
+            FieldCondition(key="topic", match=MatchValue(value=topic)),
+        ]
+    )
+
+ROLE_BOOSTS = {
+    "current_status": {
+        "current_status_answer": 3.4,
+        "project_state_latest_md": 2.1,
+        "project_state_latest_json": 2.0,
+        "topic_steering": 0.3,
+        "topic_agents": 0.2,
+        "topic_log": 0.1,
+        "memory_index": -0.4,
+    },
+    "steering": {
+        "topic_steering": 2.0,
+        "topic_agents": 1.6,
+        "shared_agents": 1.3,
+        "memory_index": 0.4,
+    },
+    "historical": {
+        "artifact_evidence": 2.8,
+        "topic_log": 1.0,
+        "memory_index": 0.6,
+        "memory_facts": 0.2,
+        "memory_lessons": 0.2,
+    },
+    "fact": {
+        "memory_facts": 2.0,
+        "memory_lessons": 1.7,
+        "memory_index": 1.2,
+        "topic_log": 0.7,
+    },
+    "policy": {
+        "shared_agents": 2.0,
+        "topic_agents": 1.7,
+        "topic_steering": 1.4,
+        "memory_lessons": 0.9,
+        "memory_facts": 0.7,
+    },
+    "next_step": {
+        "topic_todo": 2.0,
+        "topic_log": 1.4,
+        "memory_index": 1.0,
+        "topic_steering": 0.3,
+    },
+}
+
+STOPWORDS = {
+    "what", "which", "after", "from", "with", "that", "this",
+    "should", "current", "major", "phase", "core", "test",
+}
+
+REFERENCED_PATH_RE = re.compile(r"/home/agent/[A-Za-z0-9._/\-]+")
+DATE_PATTERN = re.compile(r"\b20\d{2}-\d{2}-\d{2}\b")
+
+CURRENT_STATUS_PHRASES = (
+    "current grounded project status",
+    "current grounded status",
+    "current project status",
+    "current operational status",
+    "current grounded operational status",
+    "current project state",
+    "current state",
+    "overall state",
+    "текущее состояние проекта",
+    "текущее состояние",
+    "текущий статус проекта",
+    "текущий статус",
+    "операционный статус",
+)
+
+def query_tokens(query: str):
+    tokens = []
+    for token in re.findall(r"[a-z0-9_-]{4,}", query.lower()):
+        if token in STOPWORDS or token in tokens:
+            continue
+        tokens.append(token)
+    return tokens
+
+def normalized_matchable(text: str) -> str:
+    return re.sub(r"[-_]+", " ", (text or "").lower())
+
+def top_heading_text(text: str) -> str:
+    lines = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            line = line.lstrip("#").strip()
+        lines.append(line)
+        if len(lines) >= 4:
+            break
+    return " ".join(lines)
+
+def safe_read_current_text(path_str: str) -> str:
+    if not path_str:
+        return ""
+    try:
+        p = Path(path_str)
+        if not p.is_file():
+            return ""
+        return p.read_text(encoding="utf-8", errors="ignore").strip()
+    except Exception:
+        return ""
+
+def is_current_status_query(query: str) -> bool:
+    q = " ".join(query.lower().split())
+    if not q:
+        return False
+    if any(phrase in q for phrase in CURRENT_STATUS_PHRASES):
+        return True
+    if "current" in q and ("status" in q or "state" in q):
+        return True
+    if "текущ" in q and ("статус" in q or "состояни" in q):
+        return True
+    return False
+
+def query_intents(query: str) -> set[str]:
+    q = query.lower()
+    intents = set()
+    historical = any(token in q for token in ("historical", "artifact", "report", "evidence"))
+    if not historical and is_current_status_query(q):
+        intents.add("current_status")
+    if "steering" in q or "direction" in q:
+        intents.add("steering")
+    if historical:
+        intents.add("historical")
+    if "learn" in q or "lesson" in q or "fact" in q or ("smoke test" in q and not historical):
+        intents.add("fact")
+    if "changed" in q or "change" in q:
+        intents.add("fact")
+    if "next" in q or "required step" in q or "blocker" in q:
+        intents.add("next_step")
+    if "next_step" not in intents and "historical" not in intents and ("promot" in q or "writeback" in q or "major phase" in q):
+        intents.add("policy")
+    return intents
+
+def infer_query_topic(query: str, results) -> str | None:
+    q = query.lower()
+    try:
+        for p in sorted(AGENTS_DIR.iterdir()):
+            if not p.is_dir():
+                continue
+            name = p.name
+            if name.startswith(".") or name.startswith("_"):
+                continue
+            low_name = name.lower()
+            if low_name in STOPWORDS:
+                continue
+            if re.search(rf"\b{re.escape(low_name)}\b", q):
+                return name
+    except Exception:
+        pass
+
+    counts = {}
+    for r in results:
+        topic = (r.metadata or {}).get("topic")
+        if topic:
+            counts[topic] = counts.get(topic, 0) + 1
+
+    candidate_topics = set(counts)
+    if not candidate_topics:
+        return None
+
+    ranked = []
+    for topic in candidate_topics:
+        lexical = 0.0
+        for p in durable_candidate_paths(topic):
+            doc = safe_read_current_text(str(p))
+            if not doc:
+                continue
+            lexical = max(lexical, lexical_hint_score(query, doc))
+        ranked.append((lexical, counts.get(topic, 0), topic))
+
+    ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
+    return ranked[0][2]
+
+def durable_role(path_str: str, topic: str | None) -> str:
+    p = Path(path_str)
+    if topic:
+        topic_root = AGENTS_DIR / topic
+        if p == topic_root / "artifacts" / "retrieval-execution" / "latest" / "ANSWER.md":
+            return "current_status_answer"
+        if p == topic_root / "artifacts" / "project-state" / "latest.md":
+            return "project_state_latest_md"
+        if p == topic_root / "artifacts" / "project-state" / "latest.json":
+            return "project_state_latest_json"
+        if p == topic_root / "PROJECT-STEERING.md":
+            return "topic_steering"
+        if p == topic_root / "AGENTS.md":
+            return "topic_agents"
+        if p == topic_root / "TODO.md":
+            return "topic_todo"
+        if p == topic_root / "LOG.md":
+            return "topic_log"
+        if p == topic_root / "memory" / "index.md":
+            return "memory_index"
+        if p == topic_root / "memory" / "facts.md":
+            return "memory_facts"
+        if p == topic_root / "memory" / "lessons.md":
+            return "memory_lessons"
+    if ("/artifacts/" in path_str or "/runs/" in path_str) and "/memory/" not in path_str:
+        return "artifact_evidence"
+    if p == AGENTS_DIR / "_shared" / "AGENTS.md":
+        return "shared_agents"
+    return "other"
+
+def durable_candidate_paths(topic: str | None):
+    paths = []
+    if topic:
+        topic_root = AGENTS_DIR / topic
+        paths.extend([
+            topic_root / "PROJECT-STEERING.md",
+            topic_root / "AGENTS.md",
+            topic_root / "TODO.md",
+            topic_root / "LOG.md",
+            topic_root / "memory" / "index.md",
+            topic_root / "memory" / "facts.md",
+            topic_root / "memory" / "lessons.md",
+        ])
+    paths.append(AGENTS_DIR / "_shared" / "AGENTS.md")
+    return [p for p in paths if p.is_file()]
+
+def current_status_candidate_paths(topic: str | None):
+    if not topic:
+        return []
+    topic_root = AGENTS_DIR / topic
+    paths = [
+        topic_root / "artifacts" / "retrieval-execution" / "latest" / "ANSWER.md",
+        topic_root / "artifacts" / "project-state" / "latest.md",
+        topic_root / "artifacts" / "project-state" / "latest.json",
+    ]
+    return [p for p in paths if p.is_file()]
+
+def generic_path_penalty(path_str: str) -> float:
+    if path_str.endswith("/memory/README.md"):
+        return -0.9
+    if path_str.endswith("/README.md"):
+        return -0.5
+    if "/_shared/memory/note-" in path_str:
+        return -0.3
+    return 0.0
+
+def lexical_hint_score(query: str, text: str) -> float:
+    tokens = query_tokens(query)
+    if not tokens:
+        return 0.0
+    low = text.lower()
+    hits = sum(1 for token in dict.fromkeys(tokens) if token in low)
+    return min(hits, 6) * 0.05
+
+def dated_historical_hint_score(query: str, path_str: str, text: str) -> float:
+    if not DATE_PATTERN.search(query.lower()):
+        return 0.0
+    path_low = normalized_matchable(path_str)
+    title_low = normalized_matchable(top_heading_text(text))
+    score = 0.0
+    for token in query_tokens(query):
+        needle = normalized_matchable(token)
+        if not needle:
+            continue
+        if needle in path_low:
+            score += 0.16
+        elif needle in title_low:
+            score += 0.08
+    if DATE_PATTERN.search(path_str):
+        score += 0.08
+    return min(score, 0.72)
+
+def dated_historical_secondary_penalty(query: str, path_str: str) -> float:
+    q = query.lower()
+    if not DATE_PATTERN.search(q):
+        return 0.0
+    if path_str.endswith("/manifest.json") and "manifest" not in q and "rollback" not in q:
+        return -0.18
+    return 0.0
+
+def referenced_artifact_paths(text: str):
+    seen = set()
+    out = []
+    for raw in REFERENCED_PATH_RE.findall(text or ""):
+        path_str = raw.rstrip(".,:;)]}")
+        if path_str in seen:
+            continue
+        seen.add(path_str)
+        p = Path(path_str)
+        if not p.is_file():
+            continue
+        if p.suffix.lower() not in {".md", ".json", ".txt"}:
+            continue
+        if "/artifacts/" not in path_str and "/runs/" not in path_str:
+            continue
+        out.append(p)
+    return out
+
+def rerank_results(query: str, topic: str | None, results, limit: int):
+    refreshed = []
+    for r in results:
+        meta = dict(r.metadata or {})
+        path_str = meta.get("path")
+        current_doc = safe_read_current_text(path_str)
+        refreshed.append(
+            SimpleNamespace(
+                score=float(r.score or 0.0),
+                document=current_doc or r.document or "",
+                metadata=meta,
+                id=r.id,
+            )
+        )
+
+    intents = query_intents(query)
+    if not intents:
+        return refreshed[:limit]
+
+    effective_topic = topic or infer_query_topic(query, refreshed)
+    merged = {}
+
+    def upsert(res):
+        key = (res.metadata or {}).get("path") or f"id:{res.id}"
+        prev = merged.get(key)
+        if prev is None or res.score > prev.score:
+            merged[key] = res
+
+    for res in refreshed:
+        upsert(res)
+
+    if "current_status" in intents:
+        for p in current_status_candidate_paths(effective_topic):
+            path_str = str(p)
+            doc = safe_read_current_text(path_str)
+            if not doc:
+                continue
+            meta = {
+                "topic": effective_topic or p.parent.name,
+                "scope": "topic",
+                "path": path_str,
+            }
+            prev = merged.get(path_str)
+            base_score = float(prev.score) if prev else 0.0
+            merged[path_str] = SimpleNamespace(
+                score=base_score,
+                document=doc,
+                metadata=meta if prev is None else prev.metadata,
+                id=None if prev is None else prev.id,
+            )
+
+    for p in durable_candidate_paths(effective_topic):
+        path_str = str(p)
+        doc = safe_read_current_text(path_str)
+        if not doc:
+            continue
+        meta = {
+            "topic": effective_topic or p.parent.name,
+            "scope": "shared" if "/_shared/" in path_str else "topic",
+            "path": path_str,
+        }
+        prev = merged.get(path_str)
+        base_score = float(prev.score) if prev else 0.0
+        merged[path_str] = SimpleNamespace(
+            score=base_score,
+            document=doc,
+            metadata=meta if prev is None else prev.metadata,
+            id=None if prev is None else prev.id,
+        )
+
+    if "historical" in intents:
+        for res in list(merged.values()):
+            for p in referenced_artifact_paths(res.document or ""):
+                path_str = str(p)
+                doc = safe_read_current_text(path_str)
+                if not doc:
+                    continue
+                prev = merged.get(path_str)
+                topic_name = effective_topic
+                try:
+                    rel = p.relative_to(AGENTS_DIR)
+                    if len(rel.parts) > 1:
+                        topic_name = rel.parts[0]
+                except Exception:
+                    pass
+                meta = {
+                    "topic": topic_name,
+                    "scope": "topic",
+                    "path": path_str,
+                }
+                base_score = float(prev.score) if prev else 0.0
+                merged[path_str] = SimpleNamespace(
+                    score=base_score,
+                    document=doc,
+                    metadata=meta if prev is None else prev.metadata,
+                    id=None if prev is None else prev.id,
+                )
+
+    scored = []
+    for res in merged.values():
+        meta = res.metadata or {}
+        path_str = meta.get("path", "")
+        role = durable_role(path_str, effective_topic)
+        score = float(res.score or 0.0) + generic_path_penalty(path_str)
+        for intent in intents:
+            score += ROLE_BOOSTS.get(intent, {}).get(role, 0.0)
+        score += lexical_hint_score(query, res.document or "")
+        if "historical" in intents:
+            score += dated_historical_hint_score(query, path_str, res.document or "")
+            score += dated_historical_secondary_penalty(query, path_str)
+        scored.append(
+            SimpleNamespace(
+                score=score,
+                document=res.document,
+                metadata=meta,
+                id=res.id,
+            )
+        )
+
+    scored.sort(key=lambda item: item.score, reverse=True)
+    return scored[:limit]
+
+def write_note(scope: str, topic: str, text: str) -> Path:
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base = SHARED_DIR if scope == "shared" else (AGENTS_DIR / topic / "memory")
+    base.mkdir(parents=True, exist_ok=True)
+    p = base / f"note-{ts}.md"
+    p.write_text(text.strip() + "\n", encoding="utf-8")
+    return p
+
+def cmd_add(args):
+    c = qdrant()
+    p = write_note(args.scope, args.topic, args.text)
+    meta = {"topic": args.topic, "scope": args.scope, "path": str(p), "ts": datetime.now().isoformat(timespec="seconds")}
+    c.add(collection_name=COLLECTION, documents=[args.text], metadata=[meta], ids=[uuid.uuid4().hex])
+    print(f"OK: saved {p}")
+
+def cmd_search(args):
+    c = qdrant()
+    flt = build_filter(args.topic) if args.topic else None
+    res = fast_query_once(c, COLLECTION, query_text=args.query, query_filter=flt, limit=args.limit)
+    res = rerank_results(args.query, args.topic, res, args.limit)
+    for i, r in enumerate(res, 1):
+        m = r.metadata or {}
+        doc = (m.get("document") or r.document or "").strip()
+        print(f"\n#{i} score={r.score:.3f} scope={m.get('scope')} topic={m.get('topic')}")
+        print(f"path={m.get('path')}")
+        print(doc[:1200])
+
+def cmd_snapshot(args):
+    c = qdrant()
+    out = Path(args.out) if args.out else (AGENTS_DIR / args.topic / "memory" / "context.md")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    res = fast_query_once(c, COLLECTION, query_text=args.query or args.topic, query_filter=build_filter(args.topic), limit=args.limit)
+    res = rerank_results(args.query or args.topic, args.topic, res, args.limit)
+    lines = [f"# Context snapshot: {args.topic}", f"Generated: {datetime.now().isoformat(timespec='seconds')}", f"Query: {args.query or args.topic}", ""]
+    for i, r in enumerate(res, 1):
+        m = r.metadata or {}
+        doc = (m.get('document') or r.document or '').strip()
+        lines += [f"## {i}. score={r.score:.3f}  [{m.get('scope')} / {m.get('topic')}]", f"- path: {m.get('path')}", "", doc[:1500], ""]
+    out.write_text("\n".join(lines), encoding="utf-8")
+    print(f"OK: wrote {out}")
+
+def iter_md(base: Path):
+    for p in base.rglob("*.md"):
+        if p.name.lower() == "context.md":
+            continue
+        yield p
+
+def cmd_ingest(args):
+    c = qdrant()
+    base = Path(args.path).expanduser().resolve()
+    n = 0
+    for p in iter_md(base):
+        txt = p.read_text(encoding="utf-8", errors="ignore").strip()
+        if not txt:
+            continue
+        meta = {"topic": args.topic, "scope": args.scope, "path": str(p), "ts": datetime.now().isoformat(timespec="seconds")}
+        c.add(collection_name=COLLECTION, documents=[txt], metadata=[meta], ids=[uuid.uuid4().hex])
+        n += 1
+    print(f"OK: ingested {n} markdown files from {base}")
+
+def main():
+    ap = argparse.ArgumentParser(prog="memory")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("add")
+    p.add_argument("--scope", choices=["shared", "topic"], required=True)
+    p.add_argument("--topic", default="core")
+    p.add_argument("--text", required=True)
+    p.set_defaults(func=cmd_add)
+
+    p = sub.add_parser("search")
+    p.add_argument("--topic", default=None)
+    p.add_argument("--limit", type=int, default=8)
+    p.add_argument("query")
+    p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser("snapshot")
+    p.add_argument("--topic", required=True)
+    p.add_argument("--query", default=None)
+    p.add_argument("--limit", type=int, default=12)
+    p.add_argument("--out", default=None)
+    p.set_defaults(func=cmd_snapshot)
+
+    p = sub.add_parser("ingest")
+    p.add_argument("--scope", choices=["shared", "topic"], required=True)
+    p.add_argument("--topic", required=True)
+    p.add_argument("path")
+    p.set_defaults(func=cmd_ingest)
+
+    args = ap.parse_args()
+    args.func(args)
+
+if __name__ == "__main__":
+    main()

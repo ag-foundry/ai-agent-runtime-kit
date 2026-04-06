@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.tmp
+.env
+.env.*
+.managed/
+runs/
+tmp/
+.cache/
+.venv/
+venv/

@@ -1,0 +1,16 @@
+case_id: __CASE_ID__
+target_skill: __TARGET_SKILL__
+baseline_profile: __BASELINE_PROFILE__
+trial_profile: __TRIAL_PROFILE__
+declared_capabilities: __DECLARED_CAPABILITIES__
+expected_trigger: yes
+
+Prompt:
+<replace with the concrete prompt>
+
+Review focus:
+- compare baseline vs with-skill behavior
+- confirm one-skill-under-test isolation
+- record whether the skill added a meaningful delta
+- record any safety-sensitive behavior
+- record whether harness faults would invalidate the evidence rather than being misread as product failure

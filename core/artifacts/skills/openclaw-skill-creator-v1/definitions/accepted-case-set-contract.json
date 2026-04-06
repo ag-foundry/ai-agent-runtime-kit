@@ -1,0 +1,65 @@
+{
+  "version": "openclaw-accepted-case-set-v1",
+  "required_top_level": [
+    "format",
+    "case_set_id",
+    "skill_name",
+    "status",
+    "accepted_on",
+    "description",
+    "declared_capabilities",
+    "source_run_root",
+    "cases",
+    "promotion"
+  ],
+  "optional_top_level": [
+    "comparison_modes",
+    "profiles",
+    "inventory_manifest",
+    "evidence_run_roots",
+    "source_pack_selection_policy",
+    "source_pack_selection_manifest",
+    "source_pack_selection_trace",
+    "source_global_managed_policy_registry",
+    "source_global_managed_launch_manifest",
+    "source_global_managed_launch_trace",
+    "source_global_managed_memory_fabric",
+    "source_global_managed_memory_selection",
+    "source_global_managed_default_path_enforced",
+    "source_global_managed_override",
+    "source_global_managed_invocation_mode"
+  ],
+  "required_case_keys": [
+    "case_id",
+    "path",
+    "expected_trigger",
+    "source_case_path",
+    "source_review_path"
+  ],
+  "optional_case_keys": [
+    "declared_capabilities"
+  ],
+  "allowed_status_values": [
+    "accepted",
+    "candidate",
+    "superseded"
+  ],
+  "required_promotion_keys": [
+    "promoted_at",
+    "promotion_script",
+    "readiness_snapshot"
+  ],
+  "optional_promotion_keys": [
+    "source_pack_selection_manifest",
+    "source_pack_selection_trace",
+    "source_pack_selection_policy",
+    "source_global_managed_policy_registry",
+    "source_global_managed_launch_manifest",
+    "source_global_managed_launch_trace",
+    "source_global_managed_memory_fabric",
+    "source_global_managed_memory_selection",
+    "source_global_managed_default_path_enforced",
+    "source_global_managed_override",
+    "source_global_managed_invocation_mode"
+  ]
+}

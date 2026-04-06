@@ -1,0 +1,180 @@
+{
+  "format": "core-context-router-rules-v1",
+  "version": "v1",
+  "supported_modes": [
+    "historical_review",
+    "current_run_analysis",
+    "clean_execution",
+    "compare_runs",
+    "implementation_patch",
+    "conservative_hybrid"
+  ],
+  "fallback_mode": "conservative_hybrid",
+  "mode_policies": {
+    "historical_review": {
+      "label": "Use broad historical evidence for checkpoint, repeated-signal, accumulated-run, and branch-context questions.",
+      "analytical_preference": [
+        "exact_target",
+        "latest",
+        "historical_derived",
+        "reference_memory",
+        "policy",
+        "code"
+      ],
+      "execution_allow_kinds": [
+        "summary_artifact",
+        "checkpoint_artifact",
+        "review_artifact",
+        "verdict_artifact",
+        "result_matrix",
+        "repeated_signal",
+        "readiness_note",
+        "reference_memory_artifact",
+        "policy_artifact",
+        "code_runner_script",
+        "raw_input",
+        "raw_output",
+        "assistant_output",
+        "stdout_output"
+      ],
+      "execution_exclude_unless_exact": []
+    },
+    "current_run_analysis": {
+      "label": "Make the current run root primary and keep older derived layers supporting-only unless they exactly match the target.",
+      "analytical_preference": [
+        "exact_target",
+        "latest",
+        "reference_memory",
+        "policy",
+        "code",
+        "historical_support"
+      ],
+      "execution_allow_kinds": [
+        "raw_input",
+        "raw_output",
+        "assistant_output",
+        "stdout_output",
+        "result_matrix",
+        "review_artifact",
+        "verdict_artifact",
+        "summary_artifact",
+        "readiness_note",
+        "policy_artifact",
+        "code_runner_script",
+        "reference_memory_artifact"
+      ],
+      "execution_exclude_unless_exact": [
+        "checkpoint_artifact",
+        "repeated_signal"
+      ]
+    },
+    "clean_execution": {
+      "label": "Keep the execution contour narrow and contamination-aware; do not auto-feed old derived verdicts or summaries into the execution set.",
+      "analytical_preference": [
+        "exact_target",
+        "policy",
+        "code",
+        "reference_memory",
+        "historical_support"
+      ],
+      "execution_allow_kinds": [
+        "raw_input",
+        "raw_output",
+        "assistant_output",
+        "stdout_output",
+        "policy_artifact",
+        "code_runner_script",
+        "reference_memory_artifact"
+      ],
+      "execution_exclude_unless_exact": [
+        "summary_artifact",
+        "review_artifact",
+        "verdict_artifact",
+        "result_matrix",
+        "readiness_note",
+        "checkpoint_artifact",
+        "repeated_signal"
+      ]
+    },
+    "compare_runs": {
+      "label": "Compare only the explicitly selected compare targets plus the shared canonical references needed to interpret them.",
+      "analytical_preference": [
+        "compare_target",
+        "shared_canonical",
+        "policy",
+        "reference_memory"
+      ],
+      "execution_allow_kinds": [
+        "raw_input",
+        "raw_output",
+        "assistant_output",
+        "stdout_output",
+        "review_artifact",
+        "verdict_artifact",
+        "result_matrix",
+        "summary_artifact",
+        "readiness_note",
+        "policy_artifact",
+        "code_runner_script",
+        "reference_memory_artifact"
+      ],
+      "execution_exclude_unless_exact": [
+        "checkpoint_artifact",
+        "repeated_signal"
+      ]
+    },
+    "implementation_patch": {
+      "label": "Use history for planning, but build execution around current code, current entrypoints, and explicit reference materials instead of old derived verdicts.",
+      "analytical_preference": [
+        "code",
+        "policy",
+        "exact_target",
+        "reference_memory",
+        "historical_support"
+      ],
+      "execution_allow_kinds": [
+        "code_runner_script",
+        "policy_artifact",
+        "reference_memory_artifact",
+        "raw_input",
+        "raw_output"
+      ],
+      "execution_exclude_unless_exact": [
+        "summary_artifact",
+        "review_artifact",
+        "verdict_artifact",
+        "result_matrix",
+        "readiness_note",
+        "checkpoint_artifact",
+        "repeated_signal"
+      ]
+    },
+    "conservative_hybrid": {
+      "label": "Low-confidence fallback: allow broad analytical visibility but keep the execution contour strict and contamination-aware.",
+      "analytical_preference": [
+        "exact_target",
+        "policy",
+        "reference_memory",
+        "historical_support"
+      ],
+      "execution_allow_kinds": [
+        "raw_input",
+        "raw_output",
+        "assistant_output",
+        "stdout_output",
+        "policy_artifact",
+        "code_runner_script",
+        "reference_memory_artifact"
+      ],
+      "execution_exclude_unless_exact": [
+        "summary_artifact",
+        "review_artifact",
+        "verdict_artifact",
+        "result_matrix",
+        "readiness_note",
+        "checkpoint_artifact",
+        "repeated_signal"
+      ]
+    }
+  }
+}

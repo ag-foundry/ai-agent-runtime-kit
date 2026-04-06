@@ -1,0 +1,222 @@
+{
+  "format": "core-experiment-intelligence-source-roots-v1",
+  "scope": "skill-creator-usefulness-delta-runtime-governance",
+  "roots": [
+    {
+      "source_id": "managed-skills-eval-v2",
+      "root": "/home/agent/agents/core/artifacts/skills/openclaw-skill-eval-harness-v1/runs/2026-03-31-managed-openclaw-skills-eval-v2",
+      "source_kind": "artifact-run",
+      "line_id": "managed-openclaw-skills-baseline",
+      "surface_family": "managed-skill-baseline",
+      "phase_label": "baseline gap map"
+    },
+    {
+      "source_id": "creator-hardening-smoke",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-skill-creator-hardening-v1/generated/server-vault-write-trial",
+      "source_kind": "generated-trial",
+      "line_id": "creator-platform-smoke",
+      "surface_family": "creator-platform-smoke",
+      "phase_label": "creator hardening smoke"
+    },
+    {
+      "source_id": "creator-universalization-server-vault-write",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-skill-creator-universalization-v1/generated/server-vault-write-universal-trial",
+      "source_kind": "generated-trial",
+      "line_id": "creator-platform-smoke",
+      "surface_family": "creator-platform-smoke",
+      "phase_label": "creator universalization smoke"
+    },
+    {
+      "source_id": "creator-universalization-ledger",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-skill-creator-universalization-v1/generated/ledger-evidence-audit-trial",
+      "source_kind": "generated-trial",
+      "line_id": "creator-platform-smoke",
+      "surface_family": "creator-platform-smoke",
+      "phase_label": "arbitrary-skill universalization smoke"
+    },
+    {
+      "source_id": "server-vault-write-migrated-trial",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-migrated-trial",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "post-migration baseline overlap"
+    },
+    {
+      "source_id": "server-vault-write-meaningful-delta",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-meaningful-delta-trial",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "single-case delta checkpoint"
+    },
+    {
+      "source_id": "server-vault-write-promotion-gate-check",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-policy-delta-promotion-gate-check-v1",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "promotion-gate packaging check"
+    },
+    {
+      "source_id": "server-vault-write-policy-delta-v2",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-policy-delta-trial-v2",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "combined rerun regression"
+    },
+    {
+      "source_id": "server-vault-write-policy-delta-v3",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-policy-delta-trial-v3",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "combined rerun restoration"
+    },
+    {
+      "source_id": "server-vault-write-policy-delta-v4",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-policy-delta-trial-v4",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "fresh reproducibility confirmation"
+    },
+    {
+      "source_id": "server-vault-write-policy-delta-v5",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-policy-delta-trial-v5",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "accepted-case regeneration"
+    },
+    {
+      "source_id": "server-vault-write-policy-delta-v6",
+      "root": "/home/agent/agents/core/runs/2026-04-01-openclaw-live-skills-migration-v1/generated/server-vault-write-policy-delta-trial-v6",
+      "source_kind": "generated-trial",
+      "line_id": "server-vault-write-delta",
+      "surface_family": "controlled-write-delta",
+      "phase_label": "generalized promotion path"
+    },
+    {
+      "source_id": "ledger-evidence-audit-integration-pass",
+      "root": "/home/agent/agents/core/runs/2026-04-03-ledger-evidence-audit-integration-pass-v1",
+      "source_kind": "generated-trial",
+      "line_id": "prompt-contained-net-new",
+      "surface_family": "prompt-contained-contract",
+      "phase_label": "first executed evidence"
+    },
+    {
+      "source_id": "ledger-evidence-audit-differentiating-case",
+      "root": "/home/agent/agents/core/runs/2026-04-03-ledger-evidence-audit-differentiating-case-v1",
+      "source_kind": "generated-trial",
+      "line_id": "prompt-contained-net-new",
+      "surface_family": "prompt-contained-contract",
+      "phase_label": "narrow differentiating case"
+    },
+    {
+      "source_id": "ledger-evidence-audit-hardening-rerun",
+      "root": "/home/agent/agents/core/runs/2026-04-03-ledger-evidence-audit-hardening-rerun-v1",
+      "source_kind": "generated-trial",
+      "line_id": "prompt-contained-net-new",
+      "surface_family": "prompt-contained-contract",
+      "phase_label": "hardening rerun"
+    },
+    {
+      "source_id": "promotion-readiness-auditor-pass",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-readiness-auditor-pass-v1",
+      "source_kind": "generated-trial",
+      "line_id": "prompt-contained-net-new",
+      "surface_family": "prompt-contained-contract",
+      "phase_label": "first contract-bound pass"
+    },
+    {
+      "source_id": "promotion-readiness-auditor-counterfactual",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-readiness-auditor-counterfactual-rerun-v1",
+      "source_kind": "generated-trial",
+      "line_id": "prompt-contained-net-new",
+      "surface_family": "prompt-contained-contract",
+      "phase_label": "counterfactual rerun"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-pass",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-bundle-admission-guard-pass-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "first bundle-state win"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-clean-second-pass",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-bundle-admission-guard-clean-second-pass-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "clean portability rerun"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-script-backed-rerun",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-bundle-admission-guard-script-backed-rerun-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "script-backed rerun"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-portability-validation",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-bundle-admission-guard-portability-validation-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "zero-change portability validation"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-consistency-backed",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-bundle-admission-guard-consistency-backed-rerun-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "cross-file consistency rerun"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-invariant-backed",
+      "root": "/home/agent/agents/core/runs/2026-04-03-promotion-bundle-admission-guard-invariant-backed-rerun-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "invariant-backed rerun"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-noisy-bundle",
+      "root": "/home/agent/agents/core/runs/2026-04-04-promotion-bundle-admission-guard-noisy-bundle-validation-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "noisy bundle validation"
+    },
+    {
+      "source_id": "promotion-bundle-admission-guard-tool-backed",
+      "root": "/home/agent/agents/core/runs/2026-04-04-promotion-bundle-admission-guard-tool-backed-rerun-v1",
+      "source_kind": "generated-trial",
+      "line_id": "bundle-state-net-new",
+      "surface_family": "bundle-state",
+      "phase_label": "tool-backed rerun"
+    },
+    {
+      "source_id": "runtime-governance-registry-checker",
+      "root": "/home/agent/agents/core/runs/2026-04-04-runtime-governance-registry-checker-pass-v1",
+      "source_kind": "generated-trial",
+      "line_id": "runtime-governance-net-new",
+      "surface_family": "runtime-governance-mcp",
+      "phase_label": "read-only registry checker"
+    },
+    {
+      "source_id": "runtime-governance-remediation-guard",
+      "root": "/home/agent/agents/core/runs/2026-04-04-runtime-governance-remediation-guard-pass-v1",
+      "source_kind": "generated-trial",
+      "line_id": "runtime-governance-net-new",
+      "surface_family": "runtime-governance-mcp",
+      "phase_label": "dry-run remediation guard"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "project_research_report",
+  "type": "object",
+  "required": [
+    "topic",
+    "project_type",
+    "mode",
+    "search_targets",
+    "recurring_risks",
+    "starting_approach",
+    "anti_patterns"
+  ],
+  "properties": {
+    "topic": {
+      "type": "string"
+    },
+    "project_type": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "search_targets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recurring_risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "starting_approach": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "anti_patterns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

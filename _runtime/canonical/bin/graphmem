@@ -1,0 +1,159 @@
+#!/home/agent/.venvs/memory/bin/python
+import argparse, json, os, re, sys, datetime
+from pathlib import Path
+from neo4j import GraphDatabase
+
+def need_env(name: str) -> str:
+    v = os.getenv(name)
+    if not v:
+        print(f"ERROR: env {name} is required", file=sys.stderr)
+        sys.exit(2)
+    return v
+
+NEO4J_URI  = os.getenv("NEO4J_URI", "bolt://127.0.0.1:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASS = need_env("NEO4J_PASS")
+
+def norm(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^0-9a-zа-яё]+", "_", s, flags=re.IGNORECASE)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or "x"
+
+def ent_key(t: str, name: str) -> str:
+    return f"{norm(t)}:{norm(name)}"
+
+def rel_type(p: str) -> str:
+    p = (p or "RELATED_TO").strip().upper()
+    p = re.sub(r"[^A-Z0-9_]+", "_", p)
+    p = re.sub(r"_+", "_", p).strip("_")
+    return p or "RELATED_TO"
+
+def driver():
+    return GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASS))
+
+def cmd_init(_args):
+    stmts = [
+        "CREATE CONSTRAINT entity_key IF NOT EXISTS FOR (e:Entity) REQUIRE e.key IS UNIQUE",
+        "CREATE CONSTRAINT note_path IF NOT EXISTS FOR (n:Note) REQUIRE n.path IS UNIQUE",
+        "CREATE INDEX entity_type IF NOT EXISTS FOR (e:Entity) ON (e.type)",
+        "CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.name)",
+        "CREATE INDEX note_topic IF NOT EXISTS FOR (n:Note) ON (n.topic)",
+        "CREATE INDEX note_scope IF NOT EXISTS FOR (n:Note) ON (n.scope)",
+    ]
+    with driver() as d, d.session() as s:
+        for q in stmts:
+            s.run(q)
+    print("OK: graph constraints/indexes ensured")
+
+def upsert_note(tx, path, topic, scope):
+    ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    tx.run(
+        "MERGE (n:Note {path:$path}) "
+        "SET n.topic=$topic, n.scope=$scope, n.updated_at=$ts",
+        path=path, topic=topic, scope=scope, ts=ts
+    )
+
+def upsert_entity(tx, typ, name, props):
+    ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    key = ent_key(typ, name)
+    tx.run(
+        "MERGE (e:Entity {key:$key}) "
+        "SET e.type=$type, e.name=$name, e.updated_at=$ts "
+        "SET e += $props",
+        key=key, type=typ, name=name, ts=ts, props=props or {}
+    )
+    return key
+
+def link_mention(tx, note_path, ek):
+    tx.run(
+        "MATCH (n:Note {path:$path}), (e:Entity {key:$ek}) "
+        "MERGE (n)-[:MENTIONS]->(e)",
+        path=note_path, ek=ek
+    )
+
+def upsert_relation(tx, a_key, pred, b_key, source_path, topic, scope, confidence):
+    rtype = rel_type(pred)
+    ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    cypher = f"""
+    MATCH (a:Entity {{key:$a}}), (b:Entity {{key:$b}})
+    MERGE (a)-[r:{rtype}]->(b)
+    SET r.source=$src, r.topic=$topic, r.scope=$scope, r.confidence=$conf, r.updated_at=$ts
+    """
+    tx.run(cypher, a=a_key, b=b_key, src=source_path, topic=topic, scope=scope, conf=confidence, ts=ts)
+
+def cmd_ingest(args):
+    src = str(Path(args.source).expanduser().resolve())
+    data = json.loads(Path(args.json).expanduser().read_text(encoding="utf-8"))
+    facts = data.get("facts") or []
+    if not isinstance(facts, list) or not facts:
+        print("ERROR: JSON must contain non-empty `facts` list", file=sys.stderr)
+        sys.exit(2)
+
+    with driver() as d, d.session() as s:
+        def work(tx):
+            upsert_note(tx, src, args.topic, args.scope)
+            for f in facts:
+                sub = f.get("subject") or {}
+                obj = f.get("object") or {}
+                pred = f.get("predicate") or "RELATED_TO"
+                conf = float(f.get("confidence") or 0.7)
+
+                st = sub.get("type") or "Thing"
+                sn = sub.get("name") or ""
+                sp = sub.get("props") or {}
+
+                ot = obj.get("type") or "Thing"
+                on = obj.get("name") or ""
+                op = obj.get("props") or {}
+
+                if not sn or not on:
+                    continue
+
+                a_key = upsert_entity(tx, st, sn, sp)
+                b_key = upsert_entity(tx, ot, on, op)
+
+                link_mention(tx, src, a_key)
+                link_mention(tx, src, b_key)
+                upsert_relation(tx, a_key, pred, b_key, src, args.topic, args.scope, conf)
+
+        s.execute_write(work)
+
+    print(f"OK: ingested {len(facts)} facts from {src}")
+
+def cmd_stats(_args):
+    with driver() as d, d.session() as s:
+        r = s.run("MATCH (n) RETURN labels(n)[0] AS label, count(*) AS c ORDER BY c DESC")
+        for row in r:
+            print(f"{row['label']}: {row['c']}")
+
+def cmd_query(args):
+    with driver() as d, d.session() as s:
+        r = s.run(args.cypher)
+        rows = [dict(x) for x in r]
+    print(json.dumps(rows, ensure_ascii=False, indent=2)[:12000])
+
+def main():
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("init").set_defaults(func=cmd_init)
+
+    p_ing = sub.add_parser("ingest")
+    p_ing.add_argument("--topic", required=True)
+    p_ing.add_argument("--scope", required=True, choices=["shared","topic"])
+    p_ing.add_argument("--source", required=True)
+    p_ing.add_argument("--json", required=True)
+    p_ing.set_defaults(func=cmd_ingest)
+
+    sub.add_parser("stats").set_defaults(func=cmd_stats)
+
+    p_q = sub.add_parser("query")
+    p_q.add_argument("cypher")
+    p_q.set_defaults(func=cmd_query)
+
+    args = ap.parse_args()
+    args.func(args)
+
+if __name__ == "__main__":
+    main()

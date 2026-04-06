@@ -1,0 +1,72 @@
+{
+  "version": "openclaw-skill-creator-v1",
+  "evidence_checks": {
+    "session_id_max_length": 64,
+    "required_run_modes": [
+      "baseline",
+      "with-skill"
+    ],
+    "required_review_fields": [
+      "case_id",
+      "target_skill",
+      "baseline_profile",
+      "with_skill_profile",
+      "expected_trigger",
+      "baseline_observed_trigger",
+      "with_skill_observed_trigger",
+      "outcome",
+      "verdict",
+      "overtrigger",
+      "undertrigger"
+    ]
+  },
+  "verdicts": {
+    "usable_now": {
+      "min_reviews": 1,
+      "evidence_status": "valid",
+      "baseline_observed_trigger": "no",
+      "with_skill_observed_trigger": "yes",
+      "forbid_overtrigger": true,
+      "forbid_undertrigger": true,
+      "allowed_outcomes": [
+        "pass"
+      ],
+      "require_meaningful_delta": true
+    },
+    "usable_with_caveats": {
+      "min_reviews": 1,
+      "evidence_status": "valid",
+      "baseline_observed_trigger": "no",
+      "with_skill_observed_trigger": "yes",
+      "forbid_overtrigger": true,
+      "forbid_undertrigger": true,
+      "allowed_outcomes": [
+        "pass",
+        "partial"
+      ],
+      "require_meaningful_delta": false
+    },
+    "ready_for_broader_eval": {
+      "applies_to_skills": [
+        "runtime-governance-remediation-guard"
+      ],
+      "min_reviews": 3,
+      "evidence_status": "valid",
+      "with_skill_observed_trigger": "yes",
+      "forbid_overtrigger": true,
+      "forbid_undertrigger": true,
+      "allowed_outcomes": [
+        "pass",
+        "partial"
+      ],
+      "min_meaningful_delta_count": 2,
+      "max_weak_delta_count": 1,
+      "required_only_denial_reasons": [
+        "baseline_trigger_mismatch"
+      ],
+      "require_trial_tool_usage_note": true,
+      "require_baseline_tool_absence_note": true,
+      "require_documented_weak_residue": true
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "version": "openclaw-skill-trial-plan-v1",
+  "required_top_level": [
+    "format",
+    "run_root",
+    "comparison_modes",
+    "cases"
+  ],
+  "optional_top_level": [
+    "accepted_case_set",
+    "accepted_case_manifest",
+    "inventory_manifest",
+    "profiles",
+    "runner_entrypoint",
+    "legacy_runner_entrypoint",
+    "plan_source",
+    "pack_mode",
+    "selection_confidence",
+    "pack_selection_policy",
+    "pack_selection_manifest",
+    "pack_selection_trace",
+    "global_managed_policy_registry",
+    "global_managed_launch_manifest",
+    "global_managed_launch_trace",
+    "global_managed_memory_fabric",
+    "global_managed_memory_selection",
+    "global_managed_workflow_class",
+    "global_managed_default_path_enforced",
+    "global_managed_override",
+    "global_managed_invocation_mode"
+  ],
+  "required_case_keys": [
+    "case_id",
+    "case_path",
+    "target_skill",
+    "baseline_profile",
+    "trial_profile",
+    "expected_trigger"
+  ],
+  "optional_case_keys": [
+    "declared_capabilities",
+    "review_path",
+    "case_source_type",
+    "case_source_ref",
+    "selection_class",
+    "selection_reason",
+    "selection_weight"
+  ],
+  "required_comparison_modes": [
+    "baseline",
+    "with-skill"
+  ]
+}

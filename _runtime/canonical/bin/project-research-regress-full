@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_REGRESS="/home/agent/bin/project-research-regress"
+EVAL="/home/agent/bin/project-research-eval"
+
+if [[ ! -x "$BASE_REGRESS" ]]; then
+  echo "ERROR: base regress missing or not executable: $BASE_REGRESS" >&2
+  exit 1
+fi
+
+if [[ ! -x "$EVAL" ]]; then
+  echo "ERROR: eval missing or not executable: $EVAL" >&2
+  exit 1
+fi
+
+echo "== full regression: frozen baseline =="
+"$BASE_REGRESS"
+
+echo
+echo "== full regression: eval-v1 =="
+"$EVAL" all
+
+echo
+echo "REGRESSION FULL OK"

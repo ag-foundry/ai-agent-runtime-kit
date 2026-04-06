@@ -1,0 +1,93 @@
+cases:
+  - id: core_quick_baseline
+    topic: "core"
+    mode: "quick"
+    execution_mode: "chatgpt_codex"
+    prompt: "Build AI agent server stack with OpenAI Responses API, LangGraph, Pydantic, OpenTelemetry, GitHub workflows, and Prefect orchestration"
+    expected_status: "ok"
+    expected_sources_min: 3
+    expected_sources_max: 6
+    expected_buckets:
+      - official_docs
+      - similar_solutions
+    expected_memory_first: true
+    expected_execution_mode: "chatgpt_codex"
+    expected_requires_api_key: false
+    expected_passed_gates:
+      - search_targets_have_query_sets
+      - no_memory_boilerplate_dominance
+      - starting_approach_not_generic
+      - anti_patterns_present
+      - provenance_present_for_findings
+    expected_search_targets:
+      - similar_solutions
+      - official_docs
+      - recurring_risks
+    expected_detected_classes:
+      - automation
+      - software
+
+  - id: audit_none_baseline
+    topic: "audit-smoke"
+    mode: "none"
+    execution_mode: "chatgpt_codex"
+    prompt: "none-mode regression for frozen phase5 baseline"
+    expected_status: "ok"
+    expected_sources_exact: 0
+    expected_quality_note_contains: "planning-only"
+    expected_memory_first: true
+    expected_execution_mode: "chatgpt_codex"
+    expected_requires_api_key: false
+    expected_passed_gates:
+      - search_targets_have_query_sets
+      - no_memory_boilerplate_dominance
+      - starting_approach_not_generic
+      - anti_patterns_present
+      - provenance_present_for_findings
+
+  - id: architecture_quick_expanded
+    topic: "core"
+    mode: "quick"
+    execution_mode: "chatgpt_codex"
+    prompt: "Research a production AI-agent server architecture using OpenAI Responses API, LangGraph, Pydantic schemas, OpenTelemetry tracing, GitHub Actions, and Prefect orchestration"
+    expected_status: "ok"
+    expected_sources_min: 4
+    expected_sources_max: 6
+    expected_buckets:
+      - official_docs
+      - similar_solutions
+    expected_memory_first: true
+    expected_execution_mode: "chatgpt_codex"
+    expected_requires_api_key: false
+    expected_passed_gates:
+      - search_targets_have_query_sets
+      - no_memory_boilerplate_dominance
+      - starting_approach_not_generic
+      - anti_patterns_present
+      - provenance_present_for_findings
+    expected_search_targets:
+      - similar_solutions
+      - official_docs
+      - recurring_risks
+    expected_detected_classes:
+      - automation
+      - software
+    expected_context_text_contains: "OpenTelemetry"
+
+  - id: audit_none_openai_api
+    topic: "audit-smoke"
+    mode: "none"
+    execution_mode: "openai_api"
+    prompt: "dual-mode openai_api planning-only smoke"
+    expected_status: "ok"
+    expected_sources_exact: 0
+    expected_quality_note_contains: "planning-only"
+    expected_memory_first: true
+    expected_execution_mode: "openai_api"
+    expected_requires_api_key: true
+    expected_passed_gates:
+      - search_targets_have_query_sets
+      - no_memory_boilerplate_dominance
+      - starting_approach_not_generic
+      - anti_patterns_present
+      - provenance_present_for_findings

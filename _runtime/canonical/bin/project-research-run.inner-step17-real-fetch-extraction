@@ -1,0 +1,3174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo 'Usage: project-research-run [--mode auto|none|quick|deep] <topic> "<project prompt>"' >&2
+}
+
+MODE_OVERRIDE="auto"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      [[ $# -ge 2 ]] || { echo "Missing value for --mode" >&2; exit 1; }
+      MODE_OVERRIDE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+case "$MODE_OVERRIDE" in
+  auto|none|quick|deep) ;;
+  *)
+    echo "Invalid --mode: $MODE_OVERRIDE" >&2
+    usage
+    exit 1
+    ;;
+esac
+
+if [[ $# -lt 2 ]]; then
+  usage
+  exit 1
+fi
+
+TOPIC="$1"
+shift
+PROMPT="$*"
+
+SKILL_ROOT="/home/agent/agents/_shared/skills/project-research-v2-draft"
+RUNNER_VERSION="v2-phase5-skeleton"
+SKILL_NAME="project-research"
+SKILL_VERSION="2.0-draft"
+
+if [[ ! -d "$SKILL_ROOT" ]]; then
+  echo "Skill root not found: $SKILL_ROOT" >&2
+  exit 1
+fi
+
+if [[ -x "/home/agent/bin/ensure-topic-structure.sh" ]]; then
+  "/home/agent/bin/ensure-topic-structure.sh" "$TOPIC" --quiet
+else
+  echo "ensure-topic-structure.sh not found" >&2
+  exit 1
+fi
+
+TOPIC_DIR="/home/agent/agents/$TOPIC"
+ARTIFACTS_ROOT="$TOPIC_DIR/artifacts/research"
+mkdir -p "$ARTIFACTS_ROOT"
+
+STAMP="$(date +%F-%H%M%S)"
+ARTIFACT_DIR="$ARTIFACTS_ROOT/$STAMP"
+mkdir -p "$ARTIFACT_DIR"
+
+PRECHECK_LOG="$ARTIFACT_DIR/precheck.txt"
+CONTEXT_JSON="$ARTIFACT_DIR/context.json"
+FINDINGS_JSONL="$ARTIFACT_DIR/findings.jsonl"
+PROVENANCE_JSON="$ARTIFACT_DIR/provenance.json"
+QUALITY_REPORT_JSON="$ARTIFACT_DIR/quality_report.json"
+RUN_MANIFEST_JSON="$ARTIFACT_DIR/run_manifest.json"
+RESEARCH_MD="$ARTIFACT_DIR/RESEARCH.md"
+SOURCES_JSON="$ARTIFACT_DIR/sources.json"
+
+STARTED_AT="$(date -Iseconds)"
+
+echo "== precheck memory ==" | tee "$PRECHECK_LOG" >/dev/null
+if [[ -x "$SKILL_ROOT/scripts/precheck_memory.sh" ]]; then
+  "$SKILL_ROOT/scripts/precheck_memory.sh" "$TOPIC" | tee -a "$PRECHECK_LOG" >/dev/null || true
+else
+  {
+    echo "== precheck: topic =="
+    echo "$TOPIC"
+    echo
+    echo "precheck_memory.sh not found; continuing"
+  } | tee -a "$PRECHECK_LOG" >/dev/null
+fi
+
+python3 - "$TOPIC" "$PROMPT" "$MODE_OVERRIDE" "$ARTIFACT_DIR" "$PRECHECK_LOG" "$CONTEXT_JSON" "$SOURCES_JSON" "$FINDINGS_JSONL" "$PROVENANCE_JSON" "$RESEARCH_MD" <<'PY2'
+from pathlib import Path
+import json
+import os
+import re
+import sys
+
+topic = sys.argv[1]
+prompt = sys.argv[2]
+mode_override = sys.argv[3]
+artifact_dir = sys.argv[4]
+precheck_log = sys.argv[5]
+context_json = Path(sys.argv[6])
+sources_json = Path(sys.argv[7])
+findings_jsonl = Path(sys.argv[8])
+provenance_json = Path(sys.argv[9])
+research_md = Path(sys.argv[10])
+
+text = prompt.lower()
+
+def uniq(seq):
+    out = []
+    seen = set()
+    for item in seq:
+        if item not in seen:
+            out.append(item)
+            seen.add(item)
+    return out
+
+class_scores = {
+    "analytics": 0,
+    "business": 0,
+    "website": 0,
+    "automation": 0,
+    "content": 0,
+    "documentation": 0,
+    "infrastructure": 0,
+    "software": 0,
+}
+
+keywords_map = {
+    "analytics": ["аналит", "dashboard", "kpi", "метрик", "отчет", "report"],
+    "business": ["бизнес", "продаж", "workflow", "процесс", "crm", "platform"],
+    "website": ["сайт", "website", "web", "frontend", "landing"],
+    "automation": ["автомат", "sync", "интеграц", "pipeline", "orchestrat", "workflow"],
+    "content": ["контент", "content", "media"],
+    "documentation": ["докум", "documentation", "spec", "schema"],
+    "infrastructure": ["infra", "сервер", "deploy", "docker", "kubernetes", "terraform", "observability"],
+    "software": ["app", "service", "backend", "api", "software", "agent"],
+}
+
+for cls, needles in keywords_map.items():
+    for needle in needles:
+        if needle in text:
+            class_scores[cls] += 1
+
+detected_classes = [k for k, v in class_scores.items() if v > 0]
+if not detected_classes:
+    detected_classes = ["business"]
+    class_scores["business"] = 1
+
+project_type = "mixed" if len(detected_classes) > 1 else detected_classes[0]
+
+if mode_override != "auto":
+    mode = mode_override
+    mode_reason = f"user override: {mode_override}"
+else:
+    mode = "quick"
+    mode_reason = "multi-class project: bounded discovery first" if len(detected_classes) > 1 else "default quick mode"
+
+search_targets = ["similar_solutions", "official_docs", "recurring_risks"]
+if "website" in detected_classes:
+    search_targets += ["platform_choices", "structure_patterns"]
+if "analytics" in detected_classes:
+    search_targets += ["data_models", "dashboard_patterns", "kpi_patterns"]
+if "business" in detected_classes:
+    search_targets += ["business_workflows"]
+
+search_targets = uniq(search_targets)
+
+base_kw = re.findall(r"[A-Za-zА-Яа-я0-9_-]+", prompt)
+base_kw = [w for w in base_kw if len(w) > 3][:8]
+base_phrase = " ".join(base_kw[:4]) if base_kw else prompt[:80]
+
+query_sets = {
+    "similar_solutions": [
+        f"{base_phrase} open source github",
+        f"{base_phrase} reference architecture",
+        f"{project_type} implementation examples {base_phrase}",
+    ],
+    "official_docs": [
+        f"{base_phrase} official documentation",
+        f"{base_phrase} standards specification",
+        f"{project_type} platform documentation {base_phrase}",
+    ],
+    "recurring_risks": [
+        f"{base_phrase} common issues",
+        f"{base_phrase} implementation risks",
+        f"{project_type} pitfalls {base_phrase}",
+    ],
+}
+
+if "platform_choices" in search_targets:
+    query_sets["platform_choices"] = [
+        f"{base_phrase} platform comparison",
+        f"{base_phrase} cms vs custom",
+        f"{base_phrase} hosting platform best practices",
+    ]
+
+if "structure_patterns" in search_targets:
+    query_sets["structure_patterns"] = [
+        f"{base_phrase} information architecture examples",
+        f"{base_phrase} website structure best practices",
+    ]
+
+if "data_models" in search_targets:
+    query_sets["data_models"] = [
+        f"{base_phrase} data model examples",
+        f"{base_phrase} metrics model best practices",
+    ]
+
+if "dashboard_patterns" in search_targets:
+    query_sets["dashboard_patterns"] = [
+        f"{base_phrase} dashboard design best practices",
+        f"{base_phrase} analytics dashboard examples",
+    ]
+
+if "kpi_patterns" in search_targets:
+    query_sets["kpi_patterns"] = [
+        f"{base_phrase} KPI design examples",
+        f"{base_phrase} sales KPI best practices",
+    ]
+
+if "business_workflows" in search_targets:
+    query_sets["business_workflows"] = [
+        f"{base_phrase} workflow examples",
+        f"{base_phrase} sales process best practices",
+    ]
+
+risk_seeds = [
+    "metric definition drift",
+    "data quality issues",
+    "permission / access model mismatch",
+    "workflow mismatch",
+    "scope creep",
+]
+
+if "analytics" in detected_classes:
+    risk_seeds.append("integration complexity with sales tools")
+if "automation" in detected_classes:
+    risk_seeds.append("state transition ambiguity")
+if "infrastructure" in detected_classes:
+    risk_seeds.append("operational drift between environments")
+
+starting_approach = [
+    "define success criteria and scope boundaries first",
+    "review 2–3 similar solutions before committing to implementation direction",
+    "collect 1–2 authoritative sources before choosing tools/platforms",
+]
+
+if "analytics" in detected_classes:
+    starting_approach.append("define source systems, metrics, and dashboard model early")
+if "business" in detected_classes:
+    starting_approach.append("define actors, workflow states, and KPI outcomes before tool choice")
+if len(detected_classes) > 1:
+    starting_approach.append("separate structure, platform choice, and analytics integration decisions")
+
+anti_patterns = [
+    "do not widen scope before reviewing a few strong reference points",
+    "do not choose tools/platforms before identifying constraints and risks",
+    "do not treat research as implementation; keep it compact and planning-oriented",
+]
+
+open_questions = [
+    "Which external platforms / official docs matter most for this project?",
+    "Which solution candidates deserve deeper comparison before PROJECT_PLAN.md?",
+]
+
+local_memory_summary = [
+    "README: topic workspace exists",
+    "LOG: prior outputs may exist",
+    "memory/context: local topic context should be reviewed if present",
+]
+
+execution_mode = os.environ.get("PROJECT_RESEARCH_EXECUTION_MODE", "chatgpt_codex").strip() or "chatgpt_codex"
+if execution_mode not in {"chatgpt_codex", "openai_api"}:
+    execution_mode = "chatgpt_codex"
+
+if execution_mode == "openai_api":
+    execution_mode_reason = "env override: PROJECT_RESEARCH_EXECUTION_MODE=openai_api"
+    model_access_layer = "server_side_openai_api"
+    human_in_loop = False
+    requires_api_key = True
+    supports_background_automation = True
+else:
+    execution_mode_reason = "default interactive mode"
+    model_access_layer = "interactive_chatgpt_or_codex"
+    human_in_loop = True
+    requires_api_key = False
+    supports_background_automation = False
+
+
+# --- searxng live retrieval helpers ---
+import json
+import re
+from urllib.parse import urlencode, urlparse, urlunparse
+from urllib.request import Request, urlopen
+
+
+def _pr_trim(text, limit=220):
+    text = re.sub(r"\s+", " ", str(text or "")).strip()
+    return text[: limit - 1] + "…" if len(text) > limit else text
+
+
+def _pr_normalize_url(url):
+    url = str(url or "").strip()
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url)
+        path = parsed.path or "/"
+        parsed = parsed._replace(fragment="", path=path)
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", parsed.query, ""))
+    except Exception:
+        return url
+
+
+def _pr_domain(url):
+    try:
+        return (urlparse(url).netloc or "").lower()
+    except Exception:
+        return ""
+
+
+def _pr_source_bucket(url):
+    domain = _pr_domain(url)
+    try:
+        path = (urlparse(url).path or "").lower()
+    except Exception:
+        path = ""
+
+    if (
+        "docs." in domain
+        or "readthedocs" in domain
+        or "developer." in domain
+        or "developers." in domain
+        or "/docs" in path
+        or domain.endswith("openai.com")
+        or domain.endswith("pydantic.dev")
+    ):
+        return "official_docs"
+
+    if any(token in domain for token in ("github.com", "gitlab.com", "bitbucket.org")):
+        if "/issues" in path or "/discussions" in path:
+            return "issue_problem_sources"
+        return "similar_solutions"
+
+    if (
+        "forum" in domain
+        or "/forum" in path
+        or "/community" in path
+        or any(token in domain for token in ("stackoverflow.com", "serverfault.com", "reddit.com"))
+    ):
+        return "issue_problem_sources"
+
+    return "similar_solutions"
+
+
+def _pr_confidence(url, bucket):
+    domain = _pr_domain(url)
+    if bucket == "official_docs":
+        return "high"
+    if "github.com" in domain or "gitlab.com" in domain or "bitbucket.org" in domain:
+        return "high"
+    if bucket == "issue_problem_sources":
+        return "medium"
+    return "medium"
+
+
+def _pr_why_relevant(title, url, query, bucket):
+    domain = _pr_domain(url) or "unknown source"
+    if bucket == "official_docs":
+        return f"authoritative documentation match for query '{query}' from {domain}"
+    if bucket == "issue_problem_sources":
+        return f"problem-pattern reference for query '{query}' from {domain}"
+    return f"implementation/example match for query '{query}' from {domain}"
+
+
+def _pr_extract_repo_context(prompt_text):
+    text = str(prompt_text or "").strip()
+    low = text.lower()
+
+    repo_host = ""
+    repo_slug = ""
+    repo_url = ""
+
+    m = re.search(r'https?://(?:www\.)?(github\.com|gitlab\.com|bitbucket\.org)/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)', text, re.I)
+    if m:
+        repo_host = m.group(1).lower()
+        repo_slug = m.group(2)
+        repo_url = f"https://{repo_host}/{repo_slug}"
+    else:
+        m2 = re.search(r'\b(github\.com|gitlab\.com|bitbucket\.org)/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)\b', text, re.I)
+        if m2:
+            repo_host = m2.group(1).lower()
+            repo_slug = m2.group(2)
+            repo_url = f"https://{repo_host}/{repo_slug}"
+
+    repo_docs_url = ""
+    repo_readme_url = ""
+    repo_issues_url = ""
+
+    if repo_url:
+        if repo_host == "github.com":
+            repo_readme_url = repo_url + "#readme"
+            repo_docs_url = repo_url + "/tree/main/docs"
+            repo_issues_url = repo_url + "/issues"
+        elif repo_host == "gitlab.com":
+            repo_readme_url = repo_url + "#readme"
+            repo_docs_url = repo_url + "/-/tree/main/docs"
+            repo_issues_url = repo_url + "/-/issues"
+        else:
+            repo_readme_url = repo_url
+            repo_docs_url = repo_url
+            repo_issues_url = repo_url
+
+    stopwords = {
+        "help", "need", "want", "make", "build", "create", "project",
+        "setup", "configure", "configuration", "install", "installation",
+        "post", "first", "run", "default", "check", "prefer", "best",
+        "repo", "repos", "repository", "repositories", "github", "gitlab",
+        "bitbucket", "readme", "docs", "wiki", "issues", "discussion",
+        "пример", "нужно", "надо", "сделай", "помоги", "установить",
+        "установка", "настроить", "настройка", "проверка", "лучший",
+        "репо", "репозиторий", "документация", "доки", "вики", "для",
+        "the", "and", "for", "with", "from", "into", "this", "that",
+        "core", "business", "general",
+    }
+
+    raw_tokens = re.findall(r"[A-Za-zА-Яа-я0-9_.+-]+", text)
+    focus_terms = []
+    seen = set()
+    for tok in raw_tokens:
+        norm = tok.strip().lower()
+        if len(norm) < 3:
+            continue
+        if norm.isdigit():
+            continue
+        if norm in stopwords:
+            continue
+        if norm not in seen:
+            seen.add(norm)
+            focus_terms.append(norm)
+
+    focus_terms = focus_terms[:10]
+
+    locale_bias = "global"
+    if re.search(r"[а-яё]", low):
+        locale_bias = "ru"
+    if any(marker in low for marker in ["россия", "рф", "russia", "russian", "русский", "для россии"]):
+        locale_bias = "ru"
+    elif re.search(r"[\u4e00-\u9fff]", text):
+        locale_bias = "zh"
+
+    category_markers = {
+        "router_network": [
+            "router", "роутер", "keenetic", "openwrt", "mikrotik", "entware",
+            "xkeen", "wifi", "dns", "dhcp", "firmware", "маршрутизатор",
+        ],
+        "server_ops": [
+            "server", "сервер", "docker", "nginx", "ubuntu", "debian",
+            "systemd", "vps", "compose", "reverse-proxy", "reverse", "proxy",
+        ],
+        "python_ai": [
+            "python", "langgraph", "pydantic", "openai", "llm", "rag",
+            "agent", "ai", "embedding", "rerank", "qdrant",
+        ],
+        "mobile_client": [
+            "android", "ios", "iphone", "ipad", "apk", "mobile", "смартфон",
+        ],
+    }
+
+    audience_profile = "general"
+    best_score = 0
+    for profile, markers in category_markers.items():
+        score = sum(1 for m in markers if m in low)
+        if score > best_score:
+            best_score = score
+            audience_profile = profile
+
+    return {
+        "repo_host": repo_host,
+        "repo_slug": repo_slug,
+        "repo_url": repo_url,
+        "repo_readme_url": repo_readme_url,
+        "repo_docs_url": repo_docs_url,
+        "repo_issues_url": repo_issues_url,
+        "repo_docs_first": bool(repo_url),
+        "locale_bias": locale_bias,
+        "audience_profile": audience_profile,
+        "focus_terms": focus_terms,
+    }
+
+
+def _pr_is_install_context(prompt_text):
+    low = str(prompt_text or "").lower()
+    install_markers = [
+        "install",
+        "installation",
+        "setup",
+        "configure",
+        "configuration",
+        "post-install",
+        "post install",
+        "first run",
+        "default port",
+        "default path",
+        "readme",
+        "docker compose",
+        "docker-compose",
+        ".env",
+        "example config",
+        "sample config",
+        "wiki",
+        "release notes",
+        "после установки",
+        "установка",
+        "настройка",
+        "настроить",
+        "конфиг",
+        "порт",
+        "путь",
+        "не работает после установки",
+    ]
+    return any(marker in low for marker in install_markers)
+
+
+
+_PR_LAST_REPO_DISCOVERY = {
+    "enabled": True,
+    "strategy": "candidate_repo_discovery_v1",
+    "repo_candidates": [],
+    "selected_roles": {},
+}
+
+
+
+_PR_LAST_FETCH_EXTRACTION = {
+    "enabled": True,
+    "strategy": "fetch_extraction_scaffold_v1",
+    "status": "scaffold_only",
+    "planned_candidates": [],
+    "extract_focus": [],
+}
+
+
+def _pr_guess_fetch_method(url, source_role=""):
+    low = str(url or "").lower()
+    role = str(source_role or "").lower()
+
+    if low.endswith(".pdf"):
+        return "pdf_text"
+    if "raw.githubusercontent.com" in low:
+        return "raw_text"
+    if "github.com" in low and "/blob/" in low:
+        return "github_blob"
+    if "github.com" in low and "/wiki" in low:
+        return "github_wiki"
+    if "github.com" in low and ("/issues/" in low or "/discussions/" in low):
+        return "github_issue_discussion"
+    if role in ("official_docs", "official_repo"):
+        return "html_readable"
+    return "html_readable"
+
+
+
+_PR_LAST_EVIDENCE_INDEX = {
+    "enabled": True,
+    "strategy": "local_hybrid_evidence_scaffold_v1",
+    "status": "scaffold_only",
+    "planned_store": "artifact_local_only",
+    "chunking_policy": {},
+    "retrieval_modes": [],
+    "index_fields": [],
+    "evidence_candidates": [],
+    "index_focus": [],
+}
+
+
+
+_PR_LAST_RERANK_PLAN = {
+    "enabled": True,
+    "strategy": "rerank_scaffold_v1",
+    "status": "scaffold_only",
+    "weights": {},
+    "criteria": [],
+    "ranked_targets": [],
+}
+
+
+
+_PR_LAST_EVAL_SAFETY = {
+    "enabled": True,
+    "strategy": "eval_safety_scaffold_v1",
+    "status": "scaffold_only",
+    "eval_dimensions": [],
+    "safety_policy": {},
+    "alerts": [],
+    "benchmark_hooks": [],
+}
+
+
+def _pr_build_eval_safety_plan(rerank_plan, evidence_index=None, repo_context=None, install_context=False):
+    rerank_plan = rerank_plan or {}
+    evidence_index = evidence_index or {}
+    repo_context = repo_context or {}
+
+    locale_bias = str(repo_context.get("locale_bias", "global") or "global").lower()
+    audience_profile = str(repo_context.get("audience_profile", "general") or "general").lower()
+    ranked_targets = rerank_plan.get("ranked_targets", []) or []
+    evidence_candidates = evidence_index.get("evidence_candidates", []) or []
+
+    eval_dimensions = [
+        "source_coverage",
+        "citation_support",
+        "repo_role_balance",
+        "generic_host_suppression",
+        "focus_term_alignment",
+        "install_evidence_capture",
+        "issue_vs_docs_balance",
+    ]
+
+    if locale_bias in ("ru", "zh"):
+        eval_dimensions.append("regional_fit")
+
+    if audience_profile in ("router_network", "server_ops", "python_ai", "mobile_client"):
+        eval_dimensions.append("task_profile_alignment")
+
+    safety_policy = {
+        "treat_fetched_content_as_untrusted": True,
+        "never_follow_page_instructions_as_system_policy": True,
+        "allowed_fetch_scope": [
+            "read_only_web_fetch",
+            "artifact_local_processing",
+        ],
+        "forbidden_from_fetched_content": [
+            "credential_extraction",
+            "secret_execution",
+            "shell_command_execution_from_page_text",
+            "tool_reconfiguration_from_page_text",
+        ],
+        "prompt_injection_boundary": "strict",
+        "html_pdf_text_only": True,
+    }
+
+    alerts = []
+    if not ranked_targets:
+        alerts.append("no_ranked_targets")
+    if len(ranked_targets) > 0 and all("docs.github.com" in str(x.get("url", "")).lower() for x in ranked_targets[:2]):
+        alerts.append("generic_host_dominance_risk")
+
+    issue_count = sum(1 for x in evidence_candidates if str(x.get("source_role", "")).lower() == "issue_problem")
+    docs_count = sum(1 for x in evidence_candidates if str(x.get("source_role", "")).lower() in ("official_repo", "official_docs"))
+    if install_context and docs_count == 0:
+        alerts.append("missing_official_install_sources")
+    if issue_count == 0:
+        alerts.append("no_issue_problem_sources")
+
+    benchmark_hooks = [
+        "baseline_regression_full",
+        "repo_discovery_quality_check",
+        "citation_support_check",
+        "generic_host_suppression_check",
+    ]
+    if install_context:
+        benchmark_hooks.append("install_path_capture_check")
+
+    return {
+        "enabled": True,
+        "strategy": "eval_safety_scaffold_v1",
+        "status": "scaffold_only",
+        "eval_dimensions": eval_dimensions,
+        "safety_policy": safety_policy,
+        "alerts": alerts,
+        "benchmark_hooks": benchmark_hooks,
+    }
+
+
+def _pr_build_rerank_plan(evidence_index, repo_context=None, install_context=False):
+    repo_context = repo_context or {}
+    evidence_index = evidence_index or {}
+
+    audience_profile = str(repo_context.get("audience_profile", "general") or "general").lower()
+    locale_bias = str(repo_context.get("locale_bias", "global") or "global").lower()
+    focus_terms = repo_context.get("focus_terms", []) or []
+    evidence_candidates = evidence_index.get("evidence_candidates", []) or []
+
+    weights = {
+        "lexical_match": 1.0,
+        "semantic_match": 1.0,
+        "repo_affinity": 1.2,
+        "source_role_priority": 1.1,
+        "install_context": 1.0,
+        "freshness": 0.4,
+        "generic_host_penalty": -0.8,
+    }
+
+    if install_context:
+        weights["install_context"] = 1.4
+        weights["repo_affinity"] = 1.4
+
+    if audience_profile == "router_network":
+        weights["source_role_priority"] = 1.3
+        weights["lexical_match"] = 1.2
+    elif audience_profile == "server_ops":
+        weights["semantic_match"] = 1.2
+        weights["install_context"] = 1.3
+    elif audience_profile == "python_ai":
+        weights["semantic_match"] = 1.3
+    elif audience_profile == "mobile_client":
+        weights["lexical_match"] = 1.1
+        weights["freshness"] = 0.6
+
+    if locale_bias in ("ru", "zh"):
+        weights["regional_fit"] = 0.8
+    else:
+        weights["regional_fit"] = 0.3
+
+    criteria = [
+        "exact_repo_or_docs_first",
+        "official_docs_above_generic_reference",
+        "issue_problem_boost_for_troubleshooting",
+        "practical_community_boost_when_exact_repo_missing",
+        "generic_host_suppression",
+        "focus_term_density",
+        "install_markers_priority",
+    ]
+
+    ranked_targets = []
+    role_priority = {
+        "official_repo": 100,
+        "official_docs": 90,
+        "issue_problem": 75,
+        "regional_community": 65,
+        "practical_community": 60,
+        "generic_reference": 20,
+    }
+
+    for idx, item in enumerate(evidence_candidates[:8], 1):
+        role = str(item.get("source_role", "") or "generic_reference")
+        title = str(item.get("title", "") or "")
+        url = str(item.get("url", "") or "")
+        evidence_types = item.get("expected_evidence", []) or []
+
+        simulated_score = role_priority.get(role, 20)
+        simulated_score += max(0, 10 - idx)
+
+        corpus = f"{title} {url} {' '.join(evidence_types)}".lower()
+        term_hits = 0
+        for term in focus_terms[:8]:
+            norm = str(term or "").strip().lower()
+            if norm and norm in corpus:
+                term_hits += 1
+        simulated_score += min(term_hits * 3, 12)
+
+        if install_context and any(x in corpus for x in ("installation", "configuration", "default_ports", "service_commands", "environment_variables")):
+            simulated_score += 8
+
+        if "docs.github.com" in url.lower():
+            simulated_score -= 20
+
+        ranked_targets.append(
+            {
+                "title": title,
+                "url": url,
+                "source_role": role,
+                "simulated_rerank_score": int(simulated_score),
+                "expected_evidence": evidence_types[:6],
+            }
+        )
+
+    ranked_targets = sorted(
+        ranked_targets,
+        key=lambda x: int(x.get("simulated_rerank_score", 0)),
+        reverse=True,
+    )[:8]
+
+    return {
+        "enabled": True,
+        "strategy": "rerank_scaffold_v1",
+        "status": "scaffold_only",
+        "weights": weights,
+        "criteria": criteria,
+        "ranked_targets": ranked_targets,
+    }
+
+
+def _pr_build_local_hybrid_evidence_plan(fetch_extraction, repo_context=None, install_context=False):
+    repo_context = repo_context or {}
+    fetch_extraction = fetch_extraction or {}
+
+    extract_focus = fetch_extraction.get("extract_focus", []) or []
+    planned_candidates = fetch_extraction.get("planned_candidates", []) or []
+    audience_profile = str(repo_context.get("audience_profile", "general") or "general").lower()
+
+    chunk_size = 1400
+    chunk_overlap = 180
+
+    if audience_profile == "router_network":
+        chunk_size = 1200
+        chunk_overlap = 160
+    elif audience_profile == "server_ops":
+        chunk_size = 1400
+        chunk_overlap = 200
+    elif audience_profile == "python_ai":
+        chunk_size = 1500
+        chunk_overlap = 220
+    elif audience_profile == "mobile_client":
+        chunk_size = 1100
+        chunk_overlap = 140
+
+    retrieval_modes = ["bm25_sparse", "dense_multilingual"]
+    if install_context:
+        retrieval_modes.append("path_config_bias")
+
+    index_fields = [
+        "title",
+        "url",
+        "source_role",
+        "normalized_repo_url",
+        "repo_slug",
+        "fetch_method",
+        "content_markdown",
+        "content_text",
+        "extract_focus",
+        "evidence_type",
+    ]
+
+    evidence_candidates = []
+    for idx, item in enumerate(planned_candidates[:6], 1):
+        source_role = str(item.get("source_role", "") or "generic_reference")
+        fetch_method = str(item.get("fetch_method", "") or "html_readable")
+
+        expected_evidence = ["key_facts", "usage_examples"]
+        if install_context:
+            expected_evidence = [
+                "installation_steps",
+                "configuration_paths",
+                "default_ports",
+                "service_commands",
+                "environment_variables",
+            ]
+
+        if source_role == "issue_problem":
+            expected_evidence = expected_evidence + ["error_patterns", "workarounds", "version_caveats"]
+        elif source_role in ("official_repo", "official_docs"):
+            expected_evidence = expected_evidence + ["canonical_setup", "official_examples"]
+        elif source_role in ("regional_community", "practical_community"):
+            expected_evidence = expected_evidence + ["practical_notes", "regional_context"]
+
+        evidence_candidates.append(
+            {
+                "title": _pr_trim(str(item.get("title", "") or ""), 180),
+                "url": str(item.get("url", "") or ""),
+                "source_role": source_role,
+                "fetch_method": fetch_method,
+                "priority": int(item.get("priority", idx)),
+                "chunk_target": "evidence_chunks",
+                "expected_evidence": expected_evidence[:8],
+            }
+        )
+
+    return {
+        "enabled": True,
+        "strategy": "local_hybrid_evidence_scaffold_v1",
+        "status": "scaffold_only",
+        "planned_store": "artifact_local_only",
+        "chunking_policy": {
+            "unit": "character_approx",
+            "chunk_size_chars": int(chunk_size),
+            "chunk_overlap_chars": int(chunk_overlap),
+            "normalization": [
+                "url_canonicalization",
+                "markdown_cleaning",
+                "dedup_by_url",
+            ],
+        },
+        "retrieval_modes": retrieval_modes,
+        "index_fields": index_fields,
+        "evidence_candidates": evidence_candidates,
+        "index_focus": extract_focus[:16],
+    }
+
+
+def _pr_build_fetch_extraction_plan(selected_sources, repo_context=None, install_context=False):
+    repo_context = repo_context or {}
+
+    focus_terms = repo_context.get("focus_terms", []) or []
+    audience_profile = str(repo_context.get("audience_profile", "general") or "general").lower()
+
+    extract_focus = []
+    if install_context:
+        extract_focus.extend([
+            "installation",
+            "configuration",
+            "first_run",
+            "default_ports",
+            "paths",
+            "environment_variables",
+            "compose_examples",
+            "service_commands",
+        ])
+
+    profile_focus = {
+        "router_network": ["opkg", "entware", "dns", "startup", "init_scripts", "listen_port"],
+        "server_ops": ["systemd", "docker", "compose", "bind_address", "reverse_proxy", "paths"],
+        "python_ai": ["requirements", "venv", "pip", "config", "env_vars", "examples"],
+        "mobile_client": ["client_setup", "profiles", "tls", "transport", "fallbacks"],
+        "general": ["quickstart", "readme", "docs", "examples"],
+    }
+    extract_focus.extend(profile_focus.get(audience_profile, profile_focus["general"]))
+
+    for term in focus_terms[:8]:
+        norm = str(term or "").strip().lower()
+        if norm and norm not in extract_focus:
+            extract_focus.append(norm)
+
+    dedup_focus = []
+    seen_focus = set()
+    for item in extract_focus:
+        if item and item not in seen_focus:
+            seen_focus.add(item)
+            dedup_focus.append(item)
+
+    planned_candidates = []
+    for idx, item in enumerate(selected_sources or [], 1):
+        url = str(item.get("url", "") or item.get("link", "") or "").strip()
+        if not url:
+            continue
+
+        source_role = str(item.get("source_role", "") or "generic_reference")
+        source_bucket = str(item.get("source_bucket", "") or "").strip().lower()
+        kind = str(item.get("kind", "") or "").strip().lower()
+
+        if source_role in ("", "generic_reference"):
+            if kind == "official_repo" or source_bucket == "active_repositories":
+                source_role = "official_repo"
+            elif kind == "official_doc" or source_bucket == "official_docs":
+                source_role = "official_docs"
+            elif kind == "issue_problem" or source_bucket == "issue_problem_sources":
+                source_role = "issue_problem"
+            elif source_bucket == "regional_community":
+                source_role = "regional_community"
+            elif kind == "community_doc" or source_bucket == "similar_solutions":
+                source_role = "practical_community"
+
+        title = str(item.get("title", "") or url)
+        notes = str(item.get("notes", "") or item.get("why_relevant", "") or "")
+        fetch_method = _pr_guess_fetch_method(url, source_role=source_role)
+
+        priority = idx
+        if source_role == "official_repo":
+            priority = max(1, priority - 2)
+        elif source_role == "official_docs":
+            priority = max(1, priority - 1)
+        elif source_role in ("regional_community", "practical_community"):
+            priority = priority + 1
+
+        planned_candidates.append(
+            {
+                "title": _pr_trim(title, 180),
+                "url": url,
+                "source_role": source_role,
+                "source_bucket": source_bucket,
+                "kind": kind,
+                "normalized_repo_url": str(item.get("normalized_repo_url", "") or ""),
+                "repo_url": str(item.get("repo_url", "") or ""),
+                "canonical_doc_id": str(item.get("canonical_doc_id", "") or ""),
+                "repo_family_id": str(item.get("repo_family_id", "") or ""),
+                "fetch_method": fetch_method,
+                "priority": int(priority),
+                "why_extract": _pr_trim(notes or f"extract evidence for role={source_role}", 220),
+            }
+        )
+
+    planned_candidates = sorted(
+        planned_candidates,
+        key=lambda x: (int(x.get("priority", 999)), x.get("source_role", "")),
+    )[:6]
+
+    return {
+        "enabled": True,
+        "strategy": "fetch_extraction_scaffold_v1",
+        "status": "scaffold_only",
+        "planned_candidates": planned_candidates,
+        "extract_focus": dedup_focus[:16],
+    }
+
+
+def _pr_architecture_layers():
+    return {
+        "layer_0_scope_profile": "implemented",
+        "layer_1_source_policy_planning": "partial",
+        "layer_2_candidate_generation": "implemented",
+        "layer_2b_role_based_repo_discovery": "implemented",
+        "layer_3_fetch_extraction": "partial",
+        "layer_4_local_hybrid_index": "partial",
+        "layer_5_rerank": "partial",
+        "layer_6_synthesis_with_provenance": "implemented",
+        "layer_7_eval_and_safety": "partial",
+    }
+
+
+def _pr_normalize_repo_url(url):
+    raw = str(url or "").strip()
+    if not raw:
+        return "", "", ""
+
+    m = re.search(
+        r"https?://(?:www\.)?(github\.com|gitlab\.com|codeberg\.org)/([^/\s]+)/([^/\s#?]+)",
+        raw,
+        flags=re.I,
+    )
+    if not m:
+        return "", "", ""
+
+    host = (m.group(1) or "").lower()
+    owner = (m.group(2) or "").strip().strip("/")
+    repo = (m.group(3) or "").strip().strip("/")
+    repo = re.sub(r"\.git$", "", repo, flags=re.I)
+
+    if not owner or not repo:
+        return "", "", ""
+
+    slug = f"{owner.lower()}/{repo.lower()}"
+    normalized = f"https://{host}/{owner}/{repo}"
+    return normalized, host, slug
+
+
+def _pr_source_role_for_item(item, repo_context=None, install_context=False):
+    repo_context = repo_context or {}
+
+    title = str(item.get("title", "") or "")
+    notes = str(item.get("notes", "") or item.get("snippet", "") or item.get("content", "") or "")
+    url = str(item.get("url", "") or item.get("link", "") or "")
+    domain = str(item.get("domain", "") or "")
+
+    if not domain:
+        m = re.search(r"https?://([^/\s]+)", url, flags=re.I)
+        if m:
+            domain = (m.group(1) or "").lower()
+
+    low = f"{title} {notes} {url} {domain}".lower()
+
+    normalized_repo_url, repo_host, repo_slug = _pr_normalize_repo_url(url)
+    exact_repo_url = str(repo_context.get("repo_url", "") or "").lower().rstrip("/")
+    exact_repo_slug = str(repo_context.get("repo_slug", "") or "").lower()
+    locale_bias = str(repo_context.get("locale_bias", "global") or "global").lower()
+    focus_terms = repo_context.get("focus_terms", []) or []
+
+    source_role = "generic_reference"
+    role_score = 0
+
+    issue_markers = (
+        "/issues", "/discussions", " issue ", " issues ", " error ", " errors ",
+        " problem ", " problems ", " workaround ", " fix ", " bug ", " bugs ",
+    )
+    docs_markers = (
+        "/wiki", "/docs", " readme", "readme ", "getting started", "quickstart",
+        "installation", "install guide", "first run", "configuration", ".env", "compose",
+    )
+
+    if "docs.github.com" in domain:
+        source_role = "generic_reference"
+        role_score = -14
+    elif normalized_repo_url and exact_repo_url and normalized_repo_url.lower() == exact_repo_url:
+        if any(marker in low for marker in issue_markers):
+            source_role = "issue_problem"
+            role_score = 20
+        elif any(marker in low for marker in docs_markers):
+            source_role = "official_docs"
+            role_score = 26
+        else:
+            source_role = "official_repo"
+            role_score = 30
+    elif normalized_repo_url and exact_repo_slug and repo_slug == exact_repo_slug:
+        if any(marker in low for marker in issue_markers):
+            source_role = "issue_problem"
+            role_score = 18
+        elif any(marker in low for marker in docs_markers):
+            source_role = "official_docs"
+            role_score = 24
+        else:
+            source_role = "official_repo"
+            role_score = 28
+    elif normalized_repo_url:
+        if any(marker in low for marker in issue_markers):
+            source_role = "issue_problem"
+            role_score = 16
+        elif any(marker in low for marker in docs_markers):
+            source_role = "practical_community"
+            role_score = 13
+        else:
+            source_role = "practical_community"
+            role_score = 10
+
+        if install_context and any(marker in low for marker in docs_markers):
+            role_score += 5
+
+        term_hits = 0
+        corpus = f"{title} {notes} {repo_slug} {url}".lower()
+        for term in focus_terms[:8]:
+            norm = str(term or "").strip().lower()
+            if norm and norm in corpus:
+                term_hits += 1
+        role_score += min(term_hits, 4)
+
+        if locale_bias == "ru" and (re.search(r"[а-яё]", title) or re.search(r"[а-яё]", notes)):
+            source_role = "regional_community"
+            role_score += 5
+        elif locale_bias == "zh" and re.search(r"[\u4e00-\u9fff]", title + " " + notes):
+            source_role = "regional_community"
+            role_score += 5
+
+    return {
+        "source_role": source_role,
+        "role_score": int(role_score),
+        "normalized_repo_url": normalized_repo_url,
+        "repo_host": repo_host,
+        "repo_slug": repo_slug,
+    }
+
+
+def _pr_discover_repo_candidates(candidates, repo_context=None, install_context=False):
+    repo_context = repo_context or {}
+    grouped = {}
+
+    for item in candidates or []:
+        role_info = _pr_source_role_for_item(
+            item,
+            repo_context=repo_context,
+            install_context=install_context,
+        )
+        normalized_repo_url = role_info.get("normalized_repo_url", "")
+        if not normalized_repo_url:
+            continue
+
+        title = str(item.get("title", "") or "")
+        notes = str(item.get("notes", "") or item.get("snippet", "") or item.get("content", "") or "")
+        url = str(item.get("url", "") or item.get("link", "") or "")
+        corpus = f"{title} {notes} {url}".lower()
+
+        entry = grouped.setdefault(
+            normalized_repo_url,
+            {
+                "repo_url": normalized_repo_url,
+                "repo_host": role_info.get("repo_host", ""),
+                "repo_slug": role_info.get("repo_slug", ""),
+                "best_role": role_info.get("source_role", "generic_reference"),
+                "roles": set(),
+                "hits": 0,
+                "score": 0,
+                "exact_match": False,
+                "sample_titles": [],
+            },
+        )
+
+        entry["roles"].add(role_info.get("source_role", "generic_reference"))
+        entry["hits"] += 1
+        entry["score"] += max(int(role_info.get("role_score", 0)), 0)
+
+        repo_slug = str(entry.get("repo_slug", "") or "").lower()
+        exact_repo_slug = str(repo_context.get("repo_slug", "") or "").lower()
+        if repo_slug and exact_repo_slug and repo_slug == exact_repo_slug:
+            entry["score"] += 20
+            entry["exact_match"] = True
+
+        focus_terms = repo_context.get("focus_terms", []) or []
+        term_hits = 0
+        for term in focus_terms[:8]:
+            norm = str(term or "").strip().lower()
+            if norm and norm in corpus:
+                term_hits += 1
+        entry["score"] += min(term_hits, 3)
+
+        if any(marker in corpus for marker in ("installation", "install", "quickstart", "getting started", "/docs", "/wiki", "readme", ".env", "compose")):
+            entry["score"] += 4
+
+        if any(marker in corpus for marker in ("/issues", "/discussions", "problem", "error", "fix", "workaround", "bug")):
+            entry["score"] += 3
+
+        role_priority = {
+            "official_repo": 5,
+            "official_docs": 4,
+            "regional_community": 3,
+            "practical_community": 2,
+            "issue_problem": 1,
+            "generic_reference": 0,
+        }
+        if role_priority.get(role_info.get("source_role", "generic_reference"), 0) > role_priority.get(entry["best_role"], 0):
+            entry["best_role"] = role_info.get("source_role", "generic_reference")
+
+        if title and title not in entry["sample_titles"] and len(entry["sample_titles"]) < 3:
+            entry["sample_titles"].append(title)
+
+    final_items = []
+    for entry in grouped.values():
+        entry["roles"] = sorted(x for x in entry["roles"] if x)
+        if entry["best_role"] in ("practical_community", "regional_community") and entry["hits"] >= 2:
+            entry["score"] += 4
+        entry["score"] = int(entry["score"])
+        final_items.append(entry)
+
+    final_items.sort(
+        key=lambda x: (
+            1 if x.get("exact_match") else 0,
+            int(x.get("score", 0)),
+            int(x.get("hits", 0)),
+            len(x.get("roles", [])),
+        ),
+        reverse=True,
+    )
+
+    return {
+        "enabled": True,
+        "strategy": "candidate_repo_discovery_v1",
+        "repo_candidates": final_items[:5],
+        "selected_roles": {},
+    }
+
+
+def _pr_build_queries(topic, project_type, detected_classes, mode, repo_context=None, install_context=False):
+    prompt_seed = str(
+        globals().get("prompt")
+        or globals().get("user_prompt")
+        or globals().get("request_prompt")
+        or globals().get("research_prompt")
+        or ""
+    ).strip()
+
+    repo_context = repo_context or {}
+    repo_slug = repo_context.get("repo_slug", "")
+    repo_url = repo_context.get("repo_url", "")
+
+    entries = []
+
+    def add_query(query_text, bucket="similar_solutions"):
+        query_text = re.sub(r"\s+", " ", str(query_text or "")).strip()
+        if not query_text:
+            return
+        entries.append(
+            {
+                "query": query_text,
+                "bucket": bucket or "similar_solutions",
+            }
+        )
+
+    if prompt_seed:
+        add_query(prompt_seed, "similar_solutions")
+
+    compact = " ".join(
+        part for part in [topic, project_type, " ".join(detected_classes[:4])] if part
+    ).strip()
+    if compact:
+        add_query(compact, "similar_solutions")
+
+    locale_bias = repo_context.get("locale_bias", "global")
+    audience_profile = repo_context.get("audience_profile", "general")
+    focus_terms = repo_context.get("focus_terms", []) or []
+    dynamic_seed = " ".join(focus_terms[:8]).strip() or compact or topic
+
+    if repo_slug:
+        add_query(f'"{repo_slug}" README docs install setup configuration', "official_docs")
+        add_query(f'"{repo_slug}" docker-compose .env.example example config', "similar_solutions")
+        add_query(f'"{repo_slug}" issues discussions configuration setup', "issue_problem_sources")
+        if install_context:
+            add_query(f'"{repo_slug}" post install first run default port path config', "similar_solutions")
+        if repo_url:
+            add_query(repo_url, "similar_solutions")
+
+    add_query(f'{dynamic_seed} github repo readme docs setup', "similar_solutions")
+    add_query(f'{dynamic_seed} github issues wiki discussions', "issue_problem_sources")
+    if install_context:
+        add_query(f'{dynamic_seed} post install first run config default port path', "similar_solutions")
+
+    if locale_bias == "ru":
+        add_query(f'{dynamic_seed} github repo readme docs установка настройка', "similar_solutions")
+        add_query(f'{dynamic_seed} github wiki issue русский', "issue_problem_sources")
+    elif locale_bias == "zh":
+        add_query(f'{dynamic_seed} github repo readme docs 安装 配置', "similar_solutions")
+
+    if audience_profile == "router_network":
+        add_query(f'{dynamic_seed} router firmware github install setup', "similar_solutions")
+        add_query(f'{dynamic_seed} dns dhcp router github wiki', "similar_solutions")
+    elif audience_profile == "server_ops":
+        add_query(f'{dynamic_seed} docker compose github install config', "similar_solutions")
+        add_query(f'{dynamic_seed} server nginx systemd github setup', "similar_solutions")
+    elif audience_profile == "python_ai":
+        add_query(f'{dynamic_seed} github examples docs issues', "issue_problem_sources")
+        add_query(f'{dynamic_seed} python package readme docs setup', "official_docs")
+    elif audience_profile == "mobile_client":
+        add_query(f'{dynamic_seed} android ios github install setup', "similar_solutions")
+
+    arch = " ".join(part for part in [topic, project_type, "architecture"] if part).strip()
+    if arch:
+        add_query(arch, "similar_solutions")
+
+    issues = " ".join(part for part in [topic, project_type, "github issues"] if part).strip()
+    if issues:
+        add_query(issues, "issue_problem_sources")
+
+    priority = {
+        "issue_problem_sources": 3,
+        "official_docs": 2,
+        "similar_solutions": 1,
+    }
+
+    deduped = []
+    bucket_by_key = {}
+    seen = set()
+
+    for entry in entries:
+        query = entry["query"]
+        bucket = entry["bucket"]
+        key = query.lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(query)
+            bucket_by_key[key] = bucket
+        else:
+            prev = bucket_by_key.get(key, "similar_solutions")
+            if priority.get(bucket, 0) > priority.get(prev, 0):
+                bucket_by_key[key] = bucket
+
+    selected_queries = deduped[: (5 if mode == "quick" else 8)]
+
+    global _PR_LAST_QUERY_BUCKETS
+    _PR_LAST_QUERY_BUCKETS = {
+        query.lower(): bucket_by_key.get(query.lower(), "similar_solutions")
+        for query in selected_queries
+    }
+
+    return selected_queries
+
+def _pr_fetch_searxng_json(base_url, query):
+    base = str(base_url or "").strip().rstrip("/")
+    if not base:
+        return {}
+
+    if not base.endswith("/search"):
+        base = base + "/search"
+
+    params = urlencode(
+        {
+            "q": query,
+            "format": "json",
+            "language": "all",
+            "safesearch": 0,
+        }
+    )
+
+    req = Request(
+        f"{base}?{params}",
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "project-research-run/2",
+        },
+    )
+
+    with urlopen(req, timeout=20) as resp:
+        raw = resp.read().decode("utf-8", "ignore")
+
+    data = json.loads(raw)
+    return data if isinstance(data, dict) else {}
+
+
+def _pr_repo_affinity_score(item, repo_context=None, install_context=False):
+    url = str(item.get("url", "") or "")
+    title = str(item.get("title", "") or "").lower()
+    notes = str(item.get("notes", "") or "").lower()
+    low = url.lower()
+    corpus = " ".join([low, title, notes])
+    repo_context = repo_context or {}
+
+    repo_url = str(repo_context.get("repo_url", "") or "").lower()
+    repo_slug = str(repo_context.get("repo_slug", "") or "").lower()
+    repo_host = str(repo_context.get("repo_host", "") or "").lower()
+    locale_bias = str(repo_context.get("locale_bias", "global") or "global").lower()
+    audience_profile = str(repo_context.get("audience_profile", "general") or "general").lower()
+    focus_terms = repo_context.get("focus_terms", []) or []
+
+    score = 0
+
+    if repo_url and low.startswith(repo_url):
+        score += 180
+
+    if repo_slug and repo_slug in low:
+        score += 140
+
+    if repo_host and repo_host in low and repo_slug:
+        score += 30
+
+    repo_doc_markers = (
+        "#readme",
+        "/blob/main/readme",
+        "/blob/master/readme",
+        "/tree/main/docs",
+        "/tree/master/docs",
+        "/wiki",
+        "/issues",
+        "/releases",
+    )
+    if any(marker in low for marker in repo_doc_markers):
+        score += 60
+
+    if install_context and any(marker in low for marker in ("readme", "/docs", "/wiki", "/issues", "compose", ".env")):
+        score += 30
+
+    term_hits = sum(1 for term in focus_terms if term and term in corpus)
+    score += min(term_hits * 18, 108)
+
+    if locale_bias == "ru" and (re.search(r"[а-яё]", title) or re.search(r"[а-яё]", notes)):
+        score += 20
+    elif locale_bias == "zh" and re.search(r"[\u4e00-\u9fff]", title + " " + notes):
+        score += 20
+
+    audience_markers = {
+        "router_network": ["router", "роутер", "dns", "dhcp", "firmware", "keenetic", "openwrt", "entware", "xkeen"],
+        "server_ops": ["server", "docker", "nginx", "systemd", "ubuntu", "debian", "compose", "vps"],
+        "python_ai": ["python", "langgraph", "pydantic", "openai", "llm", "agent", "qdrant", "embedding"],
+        "mobile_client": ["android", "ios", "iphone", "ipad", "mobile", "apk"],
+    }
+    markers = audience_markers.get(audience_profile, [])
+    if markers:
+        hits = sum(1 for marker in markers if marker in corpus)
+        score += min(hits * 14, 70)
+
+    return score
+
+
+def _pr_candidate_quality_score(item, repo_context=None, install_context=False):
+    url = item.get("url", "")
+    title = str(item.get("title", "")).lower()
+    notes = str(item.get("notes", "")).lower()
+    bucket = item.get("source_bucket", "similar_solutions")
+    domain = _pr_domain(url)
+
+    score = 0
+
+    if bucket == "official_docs":
+        score += 100
+    elif bucket == "issue_problem_sources":
+        score += 60
+    else:
+        score += 40
+
+    if any(token in domain for token in (
+        "docs.",
+        "developer.",
+        "developers.",
+        "readthedocs",
+        "github.com",
+        "gitlab.com",
+        "bitbucket.org",
+        "openai.com",
+        "langchain.com",
+        "langchain-ai.github.io",
+        "pydantic.dev",
+        "opentelemetry.io",
+        "prefect.io",
+        "adguard.com",
+    )):
+        score += 50
+
+    score += _pr_repo_affinity_score(item, repo_context=repo_context, install_context=install_context)
+    role_info = _pr_source_role_for_item(item, repo_context=repo_context, install_context=install_context)
+    score += int(role_info.get("role_score", 0))
+    if role_info.get("source_role") == "generic_reference" and not repo_context.get("repo_url"):
+        score -= 8
+    if role_info.get("source_role") in ("practical_community", "regional_community") and not repo_context.get("repo_url"):
+        score += 6
+
+    bad_title_tokens = [
+        "best ",
+        "top ",
+        "review",
+        "reviews",
+        "talks",
+        "conference",
+        "summit",
+        "sponsor",
+        "pricing",
+        "compare",
+        "comparison",
+    ]
+    if any(tok in title for tok in bad_title_tokens):
+        score -= 60
+
+    bad_domain_tokens = [
+        "g2.com",
+        "capterra.com",
+        "medium.com",
+    ]
+    if any(tok in domain for tok in bad_domain_tokens):
+        score -= 40
+
+    if "docs.github.com" in domain and not repo_context.get("repo_url"):
+        score -= 80
+
+    bad_path_tokens = [
+        "/tags/",
+        "/tag/",
+        "/category/",
+        "/blog/",
+        "/news/",
+        "/talks",
+        "/events",
+    ]
+    if any(tok in url.lower() for tok in bad_path_tokens):
+        score -= 35
+
+    if repo_context and repo_context.get("repo_url") and bucket == "similar_solutions":
+        if _pr_repo_affinity_score(item, repo_context=repo_context, install_context=install_context) == 0:
+            score -= 20
+
+    if "retrieved via searxng" in notes:
+        score += 0
+
+    return score
+
+
+def _pr_select_candidates(candidates, final_limit, repo_context=None, install_context=False):
+    bucket_quotas = {
+        "official_docs": 2,
+        "similar_solutions": 2,
+        "issue_problem_sources": 1,
+    }
+    by_bucket = {k: [] for k in bucket_quotas}
+    overflow = []
+
+    filtered = []
+    for item in candidates:
+        item = dict(item)
+        item["repo_affinity_score"] = _pr_repo_affinity_score(
+            item,
+            repo_context=repo_context,
+            install_context=install_context,
+        )
+        item["quality_score"] = _pr_candidate_quality_score(
+            item,
+            repo_context=repo_context,
+            install_context=install_context,
+        )
+        if item["quality_score"] < 20:
+            continue
+        filtered.append(item)
+
+    for item in filtered:
+        bucket = item.get("source_bucket", "similar_solutions")
+        if bucket in by_bucket:
+            by_bucket[bucket].append(item)
+        else:
+            overflow.append(item)
+
+    for bucket in by_bucket:
+        by_bucket[bucket] = sorted(
+            by_bucket[bucket],
+            key=lambda item: (
+                item.get("repo_affinity_score", 0),
+                item.get("quality_score", 0),
+                -item.get("rank", 9999),
+            ),
+            reverse=True,
+        )
+
+    overflow = sorted(
+        overflow,
+        key=lambda item: (
+            item.get("repo_affinity_score", 0),
+            item.get("quality_score", 0),
+            -item.get("rank", 9999),
+        ),
+        reverse=True,
+    )
+
+    selected = []
+    seen_urls = set()
+
+    def add_item(item):
+        url = item.get("url", "")
+        if not url or url in seen_urls:
+            return
+        seen_urls.add(url)
+        selected.append(
+            {
+                "title": item["title"],
+                "url": url,
+                "why_relevant": item["why_relevant"],
+                "confidence": item["confidence"],
+                "source_bucket": item["source_bucket"],
+                "notes": item["notes"],
+            }
+        )
+
+    def is_repo_candidate(item):
+        url = str(item.get("url", "") or "").lower()
+        title = str(item.get("title", "") or "").lower()
+        notes = str(item.get("notes", "") or "").lower()
+        corpus = " ".join([url, title, notes])
+
+        if "github.com/" not in url and "gitlab.com/" not in url and "bitbucket.org/" not in url:
+            return False
+
+        if any(marker in url for marker in ("/issues/", "/discussions/", "/wiki/", "/releases/", "/blob/", "/tree/")):
+            return False
+
+        focus_terms = repo_context.get("focus_terms", []) or []
+        audience_profile = repo_context.get("audience_profile", "general")
+
+        if any(term in corpus for term in focus_terms[:8]):
+            return True
+
+        audience_markers = {
+            "router_network": ["router", "роутер", "dns", "dhcp", "firmware", "keenetic", "openwrt", "entware", "xkeen"],
+            "server_ops": ["server", "docker", "nginx", "systemd", "ubuntu", "debian", "compose", "vps"],
+            "python_ai": ["python", "langgraph", "pydantic", "openai", "llm", "agent", "qdrant", "embedding"],
+            "mobile_client": ["android", "ios", "iphone", "ipad", "mobile", "apk"],
+        }
+        markers = audience_markers.get(audience_profile, [])
+        return any(marker in corpus for marker in markers)
+
+    exact_repo_priority = sorted(
+        [item for item in filtered if item.get("repo_affinity_score", 0) >= 140],
+        key=lambda item: (
+            item.get("repo_affinity_score", 0),
+            item.get("quality_score", 0),
+            -item.get("rank", 9999),
+        ),
+        reverse=True,
+    )
+
+    for item in exact_repo_priority[:3]:
+        add_item(item)
+
+    if not repo_context.get("repo_url"):
+        candidate_repos = sorted(
+            [item for item in filtered if is_repo_candidate(item)],
+            key=lambda item: (
+                item.get("repo_affinity_score", 0),
+                item.get("quality_score", 0),
+                -item.get("rank", 9999),
+            ),
+            reverse=True,
+        )
+        for item in candidate_repos[:3]:
+            add_item(item)
+
+    for bucket in ("official_docs", "issue_problem_sources", "similar_solutions"):
+        for item in by_bucket.get(bucket, [])[: bucket_quotas[bucket]]:
+            add_item(item)
+
+    remaining = []
+    for bucket_items in by_bucket.values():
+        remaining.extend(bucket_items)
+    remaining.extend(overflow)
+
+    remaining = sorted(
+        remaining,
+        key=lambda item: (
+            item.get("repo_affinity_score", 0),
+            item.get("quality_score", 0),
+            -item.get("rank", 9999),
+        ),
+        reverse=True,
+    )
+
+    for item in remaining:
+        if len(selected) >= final_limit:
+            break
+        add_item(item)
+
+    return selected[:final_limit]
+
+
+def _pr_run_searxng_live(base_url, queries, per_query_limit, final_limit, repo_context=None, install_context=False):
+    candidates = []
+    seen_urls = set()
+    query_bucket_map = globals().get("_PR_LAST_QUERY_BUCKETS", {}) or {}
+    global _PR_LAST_SEARXNG_DEBUG
+    _PR_LAST_SEARXNG_DEBUG = {"queries": [], "errors": [], "candidate_count": 0, "selected_count": 0}
+
+    effective_queries = []
+    seen_query_keys = set()
+
+    def add_effective_query(query_text, bucket):
+        query_text = " ".join(str(query_text or "").split()).strip()
+        bucket = str(bucket or "similar_solutions").strip() or "similar_solutions"
+        if not query_text:
+            return
+        key = (query_text.lower(), bucket)
+        if key in seen_query_keys:
+            return
+        seen_query_keys.add(key)
+        effective_queries.append({
+            "query": query_text[:180],
+            "bucket": bucket,
+        })
+
+    focus_terms = []
+    for term in (repo_context.get("focus_terms", []) or []):
+        norm = str(term or "").strip().lower()
+        if norm and norm not in focus_terms:
+            focus_terms.append(norm)
+
+    generic_terms = {
+        "research",
+        "production",
+        "using",
+        "mixed",
+        "server",
+        "architecture",
+        "documentation",
+        "software",
+        "open",
+        "source",
+        "core",
+        "automation",
+        "implementation",
+        "examples",
+        "common",
+        "issues",
+        "risks",
+        "official",
+        "platform",
+    }
+    tech_terms = [x for x in focus_terms if len(x) >= 4 and x not in generic_terms]
+
+    repo_slug = str(repo_context.get("repo_slug", "") or "").strip()
+    repo_url = str(repo_context.get("repo_url", "") or "").strip()
+
+    if repo_slug:
+        add_effective_query(f"{repo_slug} github", "similar_solutions")
+        add_effective_query(f"{repo_slug} docs", "official_docs")
+        add_effective_query(f"github {repo_slug} issues", "issue_problem_sources")
+
+    if not repo_url:
+        if "openai" in tech_terms or "responses" in tech_terms or "api" in tech_terms:
+            add_effective_query("openai agents python github", "similar_solutions")
+            add_effective_query("openai agents sdk docs", "official_docs")
+            add_effective_query("github openai openai-agents-python issues", "issue_problem_sources")
+            add_effective_query("openai responses api github", "official_docs")
+
+        if "langgraph" in tech_terms:
+            add_effective_query("langgraph overview docs", "official_docs")
+            add_effective_query("langchain-ai langgraph github", "similar_solutions")
+            add_effective_query("github langchain-ai langgraph issues", "issue_problem_sources")
+
+        if "pydantic" in tech_terms:
+            add_effective_query("pydantic docs", "official_docs")
+            add_effective_query("pydantic github", "similar_solutions")
+
+        if "prefect" in tech_terms:
+            add_effective_query("prefect docs workflows", "official_docs")
+            add_effective_query("prefect github", "similar_solutions")
+
+        if "opentelemetry" in tech_terms or "tracing" in tech_terms:
+            add_effective_query("opentelemetry python docs", "official_docs")
+
+    for query_entry in queries:
+        if isinstance(query_entry, dict):
+            query = str(query_entry.get("query") or "").strip()
+            intended_bucket = str(query_entry.get("bucket") or "").strip() or "similar_solutions"
+        else:
+            query = str(query_entry or "").strip()
+            intended_bucket = str(query_bucket_map.get(query.lower()) or "").strip() or "similar_solutions"
+        add_effective_query(query, intended_bucket)
+
+    if not any(x["bucket"] == "issue_problem_sources" for x in effective_queries):
+        if repo_slug:
+            add_effective_query(f"github {repo_slug} issues", "issue_problem_sources")
+        else:
+            add_effective_query("github openai openai-agents-python issues", "issue_problem_sources")
+
+    prioritized = []
+    for bucket in ("official_docs", "issue_problem_sources", "similar_solutions"):
+        for item in effective_queries:
+            if item["bucket"] == bucket and item not in prioritized:
+                prioritized.append(item)
+
+    for item in effective_queries:
+        if item not in prioritized:
+            prioritized.append(item)
+
+    effective_queries = prioritized[:9]
+
+    for query_entry in effective_queries:
+        if isinstance(query_entry, dict):
+            query = str(query_entry.get("query") or "").strip()
+            intended_bucket = str(query_entry.get("bucket") or "").strip() or "similar_solutions"
+        else:
+            query = str(query_entry or "").strip()
+            intended_bucket = str(query_bucket_map.get(query.lower()) or "").strip()
+
+        if not query:
+            continue
+
+        try:
+            payload = _pr_fetch_searxng_json(base_url, query)
+            results = payload.get("results") or []
+            _PR_LAST_SEARXNG_DEBUG["queries"].append(
+                {
+                    "query": query,
+                    "intended_bucket": intended_bucket or "",
+                    "result_count": len(results),
+                }
+            )
+        except Exception as exc:
+            _PR_LAST_SEARXNG_DEBUG["errors"].append(
+                {
+                    "query": query,
+                    "intended_bucket": intended_bucket or "",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc)[:220],
+                }
+            )
+            candidates.append(
+                {
+                    "query": query,
+                    "title": f"SearXNG error for query: {query}",
+                    "url": "",
+                    "why_relevant": "search backend error",
+                    "confidence": "medium",
+                    "source_bucket": intended_bucket or "issue_problem_sources",
+                    "notes": _pr_trim(str(exc), 220),
+                    "rank": 9999,
+                }
+            )
+            continue
+
+        for rank, raw in enumerate(results[:per_query_limit], 1):
+            url = _pr_normalize_url(raw.get("url") or raw.get("link") or "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+
+            title = _pr_trim(raw.get("title") or url, 180)
+            snippet = _pr_trim(raw.get("content") or raw.get("snippet") or "", 240)
+            derived_bucket = _pr_source_bucket(url)
+            bucket = intended_bucket or derived_bucket or "similar_solutions"
+
+            candidates.append(
+                {
+                    "query": query,
+                    "title": title,
+                    "url": url,
+                    "why_relevant": _pr_why_relevant(title, url, query, bucket),
+                    "confidence": _pr_confidence(url, bucket),
+                    "source_bucket": bucket,
+                    "notes": snippet or f"retrieved via searxng for query: {query}",
+                    "rank": rank,
+                }
+            )
+
+    usable = [item for item in candidates if item.get("url")]
+
+    repo_discovery = _pr_discover_repo_candidates(
+        usable,
+        repo_context=repo_context,
+        install_context=install_context,
+    )
+    global _PR_LAST_REPO_DISCOVERY
+    _PR_LAST_REPO_DISCOVERY = repo_discovery
+
+    selected = _pr_select_candidates(
+        usable,
+        final_limit,
+        repo_context=repo_context,
+        install_context=install_context,
+    )
+
+    selected_roles = {}
+    for item in selected:
+        role_info = _pr_source_role_for_item(
+            item,
+            repo_context=repo_context,
+            install_context=install_context,
+        )
+        item["source_role"] = role_info.get("source_role", "")
+        item["role_score"] = int(role_info.get("role_score", 0))
+        if role_info.get("normalized_repo_url"):
+            item["normalized_repo_url"] = role_info.get("normalized_repo_url", "")
+            item["repo_slug"] = role_info.get("repo_slug", "")
+            selected_roles[role_info["normalized_repo_url"]] = role_info.get("source_role", "")
+
+    _PR_LAST_REPO_DISCOVERY["selected_roles"] = selected_roles
+    _PR_LAST_SEARXNG_DEBUG["candidate_count"] = len([item for item in candidates if item.get("url")])
+    _PR_LAST_SEARXNG_DEBUG["selected_count"] = len([item for item in selected if item.get("url")])
+    return candidates, selected
+
+repo_context = _pr_extract_repo_context(prompt)
+install_context = _pr_is_install_context(prompt)
+
+search_backend = os.environ.get("PROJECT_RESEARCH_SEARCH_BACKEND", "manual_curated").strip() or "manual_curated"
+if search_backend not in {"manual_curated", "searxng"}:
+    search_backend = "manual_curated"
+
+search_backend_reason = (
+    "env override: PROJECT_RESEARCH_SEARCH_BACKEND=searxng"
+    if search_backend == "searxng"
+    else "default curated local search scaffold"
+)
+
+retrieval_strategy = "memory_first_then_external_search"
+external_search_enabled = mode in ("quick", "deep") and search_backend != "manual_curated"
+external_search_config = {
+    "backend": search_backend,
+    "backend_reason": search_backend_reason,
+    "retrieval_strategy": retrieval_strategy,
+    "enabled": external_search_enabled,
+    "searxng_base_url": os.environ.get("PROJECT_RESEARCH_SEARXNG_URL", "").strip(),
+    "max_results_per_query": 5 if mode == "quick" else 8,
+    "repo_context": repo_context,
+    "install_context": install_context,
+}
+
+retrieved_candidates = []
+selected_external_sources = []
+sources = []
+source_refs = {}
+
+
+external_search_config["live_retrieval_attempted"] = False
+external_search_config["queries"] = []
+external_search_config["retrieved_candidates_count"] = 0
+external_search_config["selected_external_sources_count"] = 0
+
+# --- searxng live retrieval branch ---
+if external_search_enabled and search_backend == "searxng":
+    external_search_config["live_retrieval_attempted"] = True
+    queries = _pr_build_queries(topic, project_type, detected_classes, mode, repo_context=repo_context, install_context=install_context)
+    external_search_config["queries"] = queries
+    searxng_url = external_search_config.get("searxng_base_url", "").strip()
+
+    if searxng_url and queries:
+        searxng_attempts = 2 if mode == "quick" else 3
+        searxng_retry_sleep_seconds = 2
+        searxng_attempt_summaries = []
+        final_retrieved_candidates = []
+        final_selected_external_sources = []
+
+        for searxng_attempt in range(1, searxng_attempts + 1):
+            retrieved_candidates, selected_external_sources = _pr_run_searxng_live(
+                searxng_url,
+                queries,
+                external_search_config["max_results_per_query"],
+                5 if mode == "quick" else 8,
+                repo_context=repo_context,
+                install_context=install_context,
+            )
+
+            selected_external_sources = [
+                item for item in selected_external_sources
+                if item.get("url")
+            ]
+
+            searxng_debug = globals().get("_PR_LAST_SEARXNG_DEBUG", {}) or {}
+            query_debug_rows = [
+                row for row in (searxng_debug.get("queries") or [])
+                if isinstance(row, dict)
+            ]
+            result_counts = [
+                int((row.get("result_count") or 0))
+                for row in query_debug_rows
+            ]
+            all_queries_zero_results = bool(result_counts) and max(result_counts) == 0
+            retrieved_with_url_count = len(
+                [item for item in retrieved_candidates if item.get("url")]
+            )
+
+            attempt_summary = {
+                "attempt": searxng_attempt,
+                "retrieved_candidates_count": retrieved_with_url_count,
+                "selected_external_sources_count": len(selected_external_sources),
+                "all_queries_zero_results": all_queries_zero_results,
+                "debug_live": json.loads(json.dumps(searxng_debug)),
+            }
+            searxng_attempt_summaries.append(attempt_summary)
+
+            final_retrieved_candidates = retrieved_candidates
+            final_selected_external_sources = selected_external_sources
+
+            if selected_external_sources:
+                break
+
+            should_retry = (
+                searxng_attempt < searxng_attempts
+                and (
+                    all_queries_zero_results
+                    or retrieved_with_url_count == 0
+                    or not query_debug_rows
+                )
+            )
+
+            if should_retry:
+                __import__("time").sleep(searxng_retry_sleep_seconds)
+                continue
+
+            if searxng_attempt < searxng_attempts:
+                __import__("time").sleep(searxng_retry_sleep_seconds)
+
+        retrieved_candidates = final_retrieved_candidates
+        selected_external_sources = final_selected_external_sources
+
+        external_search_config["retrieved_candidates_count"] = len(
+            [item for item in retrieved_candidates if item.get("url")]
+        )
+        external_search_config["selected_external_sources_count"] = len(selected_external_sources)
+        external_search_config["live_attempts"] = searxng_attempt_summaries
+
+        selected_external_sources = [
+            item for item in selected_external_sources
+            if item.get("url")
+        ]
+
+        if not selected_external_sources:
+            search_backend = "manual_curated"
+            search_backend_reason = "searxng requested but returned no usable sources after retry; fallback to manual_curated"
+    else:
+        search_backend = "manual_curated"
+        search_backend_reason = "searxng requested but PROJECT_RESEARCH_SEARXNG_URL missing; fallback to manual_curated"
+        external_search_enabled = False
+
+    external_search_config["backend"] = search_backend
+    external_search_config["backend_reason"] = search_backend_reason
+    external_search_config["enabled"] = external_search_enabled
+    external_search_config["debug_live"] = globals().get("_PR_LAST_SEARXNG_DEBUG", {})
+
+context = {
+    "topic": topic,
+    "project_type": project_type,
+    "detected_classes": detected_classes,
+    "class_scores": class_scores,
+    "mode": mode,
+    "mode_reason": mode_reason,
+    "execution_mode": execution_mode,
+    "execution_mode_reason": execution_mode_reason,
+    "model_access_layer": model_access_layer,
+    "human_in_loop": human_in_loop,
+    "requires_api_key": requires_api_key,
+    "supports_background_automation": supports_background_automation,
+    "search_backend": search_backend,
+    "search_backend_reason": search_backend_reason,
+    "retrieval_strategy": retrieval_strategy,
+    "external_search_enabled": external_search_enabled,
+    "external_search_config": external_search_config,
+    "repo_context": repo_context,
+    "install_context": install_context,
+    "memory_first": True,
+    "initial_prompt": prompt,
+    "keywords": base_kw[:4],
+    "search_targets": search_targets,
+    "source_priority": [
+        "official_docs",
+        "active_repositories",
+        "issue_patterns",
+        "technical_articles",
+        "forums_if_needed",
+    ],
+    "query_sets": query_sets,
+    "risk_seeds": uniq(risk_seeds),
+    "starting_approach": uniq(starting_approach),
+    "anti_patterns": anti_patterns,
+    "open_questions": open_questions,
+    "local_memory_summary": local_memory_summary,
+    "artifact_dir": artifact_dir,
+    "precheck_log": precheck_log,
+}
+
+fetch_extraction = _pr_build_fetch_extraction_plan(
+    selected_external_sources,
+    repo_context=repo_context,
+    install_context=install_context,
+)
+_PR_LAST_FETCH_EXTRACTION = fetch_extraction
+
+evidence_index = _pr_build_local_hybrid_evidence_plan(
+    fetch_extraction,
+    repo_context=repo_context,
+    install_context=install_context,
+)
+_PR_LAST_EVIDENCE_INDEX = evidence_index
+
+rerank_plan = _pr_build_rerank_plan(
+    evidence_index,
+    repo_context=repo_context,
+    install_context=install_context,
+)
+_PR_LAST_RERANK_PLAN = rerank_plan
+
+eval_safety = _pr_build_eval_safety_plan(
+    rerank_plan,
+    evidence_index=evidence_index,
+    repo_context=repo_context,
+    install_context=install_context,
+)
+_PR_LAST_EVAL_SAFETY = eval_safety
+
+context["architecture_layers"] = _pr_architecture_layers()
+context["repo_discovery"] = _PR_LAST_REPO_DISCOVERY
+context["fetch_extraction"] = fetch_extraction
+context["evidence_index"] = evidence_index
+context["rerank_plan"] = rerank_plan
+context["eval_safety"] = eval_safety
+context_json.write_text(json.dumps(context, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+provenance_entries = [
+    {
+        "ref": "prompt-1",
+        "origin_type": "inference",
+        "path_or_url": "prompt://initial",
+        "label": "initial project prompt",
+        "used_for": ["classification", "query_sets", "findings"],
+    },
+    {
+        "ref": "precheck-1",
+        "origin_type": "local_file",
+        "path_or_url": precheck_log,
+        "label": "precheck output",
+        "used_for": ["precheck", "findings"],
+    },
+]
+
+for i, item in enumerate(local_memory_summary, start=1):
+    provenance_entries.append(
+        {
+            "ref": f"mem-{i}",
+            "origin_type": "local_memory",
+            "path_or_url": f"/home/agent/agents/{topic}/memory/context.md",
+            "label": item,
+            "used_for": ["local_memory_summary", "findings"],
+        }
+    )
+
+
+mode_limits = {
+    "none": {
+        "metadata_candidates_max": 0,
+        "bucket_caps": {},
+    },
+    "quick": {
+        "metadata_candidates_max": 6,
+        "bucket_caps": {
+            "official_docs": 2,
+              "active_repositories": 1,
+            "similar_solutions": 3,
+            "issue_problem_sources": 1,
+            "platform_choices": 1,
+            "structure_patterns": 1,
+            "data_models": 1,
+            "dashboard_patterns": 1,
+            "kpi_patterns": 1,
+            "business_workflows": 1,
+        },
+    },
+    "deep": {
+        "metadata_candidates_max": 10,
+        "bucket_caps": {
+            "official_docs": 4,
+              "active_repositories": 2,
+            "similar_solutions": 6,
+            "issue_problem_sources": 2,
+            "platform_choices": 2,
+            "structure_patterns": 2,
+            "data_models": 2,
+            "dashboard_patterns": 2,
+            "kpi_patterns": 2,
+            "business_workflows": 2,
+        },
+    },
+}
+
+active_limits = mode_limits.get(mode, mode_limits["quick"])
+bucket_counts = {}
+
+def add_source(kind, title, url, why_relevant, confidence, source_bucket, notes, source_role="", source_kind=""):
+    if mode == "none":
+        return None
+    if url in source_refs:
+        return source_refs[url]
+    if len(sources) >= active_limits["metadata_candidates_max"]:
+        return None
+    cap = active_limits["bucket_caps"].get(source_bucket, 1 if mode == "quick" else 2)
+    if bucket_counts.get(source_bucket, 0) >= cap:
+        return None
+
+    ref = f"src-{len(source_refs) + 1}"
+    source_refs[url] = ref
+    bucket_counts[source_bucket] = bucket_counts.get(source_bucket, 0) + 1
+    sources.append(
+        {
+            "kind": kind,
+            "title": title,
+            "url": url,
+            "why_relevant": why_relevant,
+            "confidence": confidence,
+            "source_bucket": source_bucket,
+            "notes": notes,
+            "source_role": source_role,
+            "source_kind": source_kind,
+        }
+    )
+    provenance_entries.append(
+        {
+            "ref": ref,
+            "origin_type": "source",
+            "path_or_url": url,
+            "label": title,
+            "used_for": ["sources", "findings"],
+        }
+    )
+    return ref
+
+
+def ensure_source_ref(url, title):
+    url = str(url or "").strip()
+    title = str(title or url or "").strip()
+    if not url:
+        return ""
+    if url in source_refs:
+        return source_refs[url]
+    ref = f"src-{len(source_refs) + 1}"
+    source_refs[url] = ref
+    provenance_entries.append(
+        {
+            "ref": ref,
+            "origin_type": "source",
+            "path_or_url": url,
+            "label": title or url,
+            "used_for": ["sources", "findings"],
+        }
+    )
+    return ref
+
+
+for item in selected_external_sources:
+    add_source(
+        kind="external_search",
+        title=item["title"],
+        url=item["url"],
+        why_relevant=item["why_relevant"],
+        confidence=item["confidence"],
+        source_bucket=item["source_bucket"],
+        notes=item["notes"],
+        source_role=item.get("source_role", ""),
+        source_kind=item.get("kind", ""),
+    )
+
+if mode in ("quick", "deep"):
+    adapter_catalog = [
+        {
+            "match_terms": ["openai", "responses api", "structured outputs", "assistant api", "assistants api"],
+            "sources": [
+                {
+                    "kind": "official_repo",
+                    "title": "OpenAI Agents Python repository",
+                    "url": "https://github.com/openai/openai-agents-python",
+                    "why_relevant": "Pinned official repository for the OpenAI Agents Python SDK and examples.",
+                    "confidence": "high",
+                    "source_bucket": "active_repositories",
+                    "notes": "curated official repo adapter",
+                },
+                {
+                    "kind": "official_doc",
+                    "title": "OpenAI Responses API reference",
+                    "url": "https://platform.openai.com/docs/api-reference/responses",
+                    "why_relevant": "Primary API reference for response objects, tools, and conversation state.",
+                    "confidence": "high",
+                    "source_bucket": "official_docs",
+                    "notes": "curated official adapter",
+                },
+                {
+                    "kind": "official_doc",
+                    "title": "OpenAI structured outputs guide",
+                    "url": "https://developers.openai.com/api/docs/guides/structured-outputs",
+                    "why_relevant": "Primary guide for schema-constrained outputs.",
+                    "confidence": "high",
+                    "source_bucket": "official_docs",
+                    "notes": "curated official adapter",
+                },
+            ],
+        },
+        {
+            "match_terms": ["langgraph"],
+            "sources": [
+                {
+                    "kind": "official_doc",
+                    "title": "LangGraph overview",
+                    "url": "https://docs.langchain.com/oss/python/langgraph/overview",
+                    "why_relevant": "Official overview for long-running, stateful agent orchestration.",
+                    "confidence": "high",
+                    "source_bucket": "official_docs",
+                    "notes": "curated official adapter",
+                },
+                {
+                    "kind": "active_repository",
+                    "title": "langchain-ai/langgraph",
+                    "url": "https://github.com/langchain-ai/langgraph",
+                    "why_relevant": "Active reference repository with issues, examples, and release activity.",
+                    "confidence": "high",
+                    "source_bucket": "similar_solutions",
+                    "notes": "curated github adapter",
+                },
+            ],
+        },
+        {
+            "match_terms": ["github", "repository", "repo", "issues", "pull request"],
+            "sources": [
+                {
+                    "kind": "official_doc",
+                    "title": "GitHub Docs",
+                    "url": "https://docs.github.com/en",
+                    "why_relevant": "Primary platform documentation for repository workflows, issues, and automation.",
+                    "confidence": "high",
+                    "source_bucket": "official_docs",
+                    "notes": "curated official adapter",
+                },
+            ],
+        },
+        {
+            "match_terms": ["prefect"],
+            "sources": [
+                {
+                    "kind": "official_doc",
+                    "title": "Prefect docs",
+                    "url": "https://docs.prefect.io/v3/get-started",
+                    "why_relevant": "Official orchestration documentation for workflow design and operations.",
+                    "confidence": "high",
+                    "source_bucket": "official_docs",
+                    "notes": "curated official adapter",
+                },
+                {
+                    "kind": "active_repository",
+                    "title": "PrefectHQ/prefect",
+                    "url": "https://github.com/PrefectHQ/prefect",
+                    "why_relevant": "Active repository for issues, examples, and release activity.",
+                    "confidence": "high",
+                    "source_bucket": "similar_solutions",
+                    "notes": "curated github adapter",
+                },
+            ],
+        },
+        {
+            "match_terms": ["opentelemetry", "otel"],
+            "sources": [
+                {
+                    "kind": "official_doc",
+                    "title": "OpenTelemetry docs",
+                    "url": "https://opentelemetry.io/docs/",
+                    "why_relevant": "Primary observability documentation for tracing and telemetry design.",
+                    "confidence": "high",
+                    "source_bucket": "official_docs",
+                    "notes": "curated official adapter",
+                },
+                {
+                    "kind": "active_repository",
+                    "title": "open-telemetry/opentelemetry-specification",
+                    "url": "https://github.com/open-telemetry/opentelemetry-specification",
+                    "why_relevant": "Canonical specification repository for telemetry semantics and conventions.",
+                    "confidence": "high",
+                    "source_bucket": "similar_solutions",
+                    "notes": "curated github adapter",
+                },
+            ],
+        },
+        {
+            "match_terms": ["pydantic"],
+            "sources": [
+                {
+                    "kind": "official_doc",
+                    "title": "Pydantic docs",
+                    "url": "https://docs.pydantic.dev/latest/",
+                    "why_relevant": "Primary validation and schema reference for typed model design.",
+                    "confidence": "high",
+                    "source_bucket": "official_docs",
+                    "notes": "curated official adapter",
+                },
+                {
+                    "kind": "active_repository",
+                    "title": "pydantic/pydantic",
+                    "url": "https://github.com/pydantic/pydantic",
+                    "why_relevant": "Active repository for implementation details, issues, and release notes.",
+                    "confidence": "high",
+                    "source_bucket": "similar_solutions",
+                    "notes": "curated github adapter",
+                },
+            ],
+        },
+    ]
+
+    def adapter_match_score(adapter):
+        hits = [term for term in adapter["match_terms"] if term in text]
+        if not hits:
+            return None
+        first_pos = min(text.index(term) for term in hits)
+        hit_count = len(hits)
+        specificity = max(len(term) for term in hits)
+        return (first_pos, -hit_count, -specificity)
+
+    matched_adapters = []
+    for adapter in adapter_catalog:
+        score = adapter_match_score(adapter)
+        if score is None:
+            continue
+        item = dict(adapter)
+        item["_match_score"] = score
+        matched_adapters.append(item)
+
+    matched_adapters.sort(key=lambda x: x["_match_score"])
+
+    max_source_slots = max((len(adapter["sources"]) for adapter in matched_adapters), default=0)
+
+    for src_idx in range(max_source_slots):
+        for adapter in matched_adapters:
+            if src_idx >= len(adapter["sources"]):
+                continue
+            item = adapter["sources"][src_idx]
+            add_source(
+                kind=item["kind"],
+                title=item["title"],
+                url=item["url"],
+                why_relevant=item["why_relevant"],
+                confidence=item["confidence"],
+                source_bucket=item["source_bucket"],
+                notes=item["notes"],
+            )
+
+
+
+# STEP32_SOURCES_WRITER_DIVERSITY_V2
+from urllib.parse import urlparse
+
+def _infer_source_role_for_sources(kind, source_bucket, url):
+    kind = str(kind or "").strip().lower()
+    bucket = str(source_bucket or "").strip().lower()
+    parsed = urlparse(str(url or ""))
+    host = parsed.netloc.lower()
+    low_path = parsed.path.lower()
+
+    if kind == "official_repo":
+        return "official_repo"
+    if kind == "official_doc":
+        return "official_docs"
+    if kind == "issue_problem":
+        return "issue_problem"
+    if kind == "community_doc":
+        if bucket == "regional_community":
+            return "regional_community"
+        return "practical_community"
+
+    if bucket == "official_docs":
+        return "official_docs"
+    if bucket == "active_repositories":
+        return "official_repo"
+    if bucket == "issue_problem_sources":
+        return "issue_problem"
+    if bucket == "regional_community":
+        return "regional_community"
+    if bucket == "similar_solutions":
+        return "practical_community"
+
+    if host == "github.com":
+        if "/issues/" in low_path or "/discussions/" in low_path:
+            return "issue_problem"
+
+    return "generic_reference"
+
+
+def _canonicalize_source_entry(entry):
+    row = dict(entry or {})
+    url = str(row.get("url") or "").strip()
+    title = row.get("title") or row.get("source_title") or url
+
+    explicit_role = str(
+        row.get("source_role")
+        or row.get("role")
+        or row.get("best_role")
+        or ""
+    ).strip().lower()
+
+    bucket = str(row.get("source_bucket") or "").strip().lower()
+    kind = str(row.get("kind") or row.get("source_kind") or "").strip().lower()
+
+    inferred_role = _infer_source_role_for_sources(kind, bucket, url)
+    role = explicit_role or inferred_role
+
+    if role == "official_repo" or kind == "official_repo" or (not explicit_role and bucket == "active_repositories"):
+        role = "official_repo"
+        bucket = "active_repositories"
+        kind = "official_repo"
+    elif role == "official_docs" or kind == "official_doc" or (not explicit_role and bucket == "official_docs"):
+        role = "official_docs"
+        bucket = "official_docs"
+        kind = "official_doc"
+    elif role == "issue_problem" or kind == "issue_problem" or (not explicit_role and bucket == "issue_problem_sources"):
+        role = "issue_problem"
+        bucket = "issue_problem_sources"
+        kind = "issue_problem"
+    elif role == "regional_community" or (not explicit_role and bucket == "regional_community"):
+        role = "regional_community"
+        bucket = "regional_community"
+        kind = "community_doc"
+    elif role == "practical_community" or kind in ("community_doc", "active_repository") or (not explicit_role and bucket == "similar_solutions"):
+        role = "practical_community"
+        bucket = "similar_solutions"
+        kind = "community_doc"
+    else:
+        if not bucket:
+            bucket = "similar_solutions"
+        if not kind:
+            kind = "external_search"
+
+    row["title"] = title
+    row["source_role"] = role
+    row["source_bucket"] = bucket
+    row["kind"] = kind
+    return row
+
+def _bucket_quotas_for_sources(mode_name):
+    mode_name = str(mode_name or "").strip().lower()
+    if mode_name == "deep":
+        return {
+            "official_docs": 3,
+            "active_repositories": 2,
+            "similar_solutions": 3,
+            "issue_problem_sources": 2,
+            "regional_community": 1,
+        }
+    return {
+        "official_docs": 2,
+        "active_repositories": 1,
+        "similar_solutions": 2,
+        "issue_problem_sources": 1,
+        "regional_community": 1,
+    }
+
+
+def _merge_sources_with_rerank(curated_sources, rerank_plan, mode_name):
+    quotas = _bucket_quotas_for_sources(mode_name)
+    selected = []
+    selected_index_by_url = {}
+    bucket_counts = {k: 0 for k in quotas}
+
+    def _bucket(item):
+        return str(item.get("source_bucket") or "").strip().lower()
+
+    def _role_rank(item):
+        role = str(item.get("source_role") or "").strip().lower()
+        table = {
+            "official_repo": 50,
+            "official_docs": 40,
+            "issue_problem": 35,
+            "practical_community": 25,
+            "regional_community": 24,
+            "generic_reference": 0,
+        }
+        return table.get(role, 0)
+
+    def _kind_rank(item):
+        kind = str(item.get("kind") or "").strip().lower()
+        table = {
+            "official_repo": 8,
+            "official_doc": 6,
+            "issue_problem": 5,
+            "community_doc": 4,
+            "active_repository": 3,
+        }
+        return table.get(kind, 0)
+
+    def _confidence_rank(item):
+        conf = str(item.get("confidence") or "").strip().lower()
+        table = {"high": 3, "medium": 2, "low": 1}
+        return table.get(conf, 0)
+
+    def _note_rank(item):
+        notes = str(item.get("notes") or "").strip().lower()
+        score = 0
+        if "curated official repo adapter" in notes:
+            score += 12
+        elif "curated official adapter" in notes:
+            score += 10
+        elif "curated github adapter" in notes:
+            score += 8
+        elif "curated" in notes:
+            score += 6
+        if "promoted from rerank_plan.ranked_targets" in notes:
+            score -= 2
+        if "promoted from rerank_plan.top_chunks" in notes:
+            score -= 3
+        return score
+
+    def _strength(item):
+        return (
+            _role_rank(item)
+            + _kind_rank(item)
+            + _confidence_rank(item)
+            + _note_rank(item)
+        )
+
+    def _inc_bucket(bucket):
+        if bucket in bucket_counts:
+            bucket_counts[bucket] += 1
+
+    def _dec_bucket(bucket):
+        if bucket in bucket_counts:
+            bucket_counts[bucket] = max(0, bucket_counts[bucket] - 1)
+
+    def _replace_index(idx, item):
+        old = selected[idx]
+        old_url = str(old.get("url") or "").strip()
+        new_url = str(item.get("url") or "").strip()
+        old_bucket = _bucket(old)
+        new_bucket = _bucket(item)
+
+        if old_url in selected_index_by_url:
+            del selected_index_by_url[old_url]
+        _dec_bucket(old_bucket)
+
+        selected[idx] = item
+        selected_index_by_url[new_url] = idx
+        _inc_bucket(new_bucket)
+
+    def _find_weakest_index_for_bucket(bucket):
+        weakest_idx = None
+        weakest_score = None
+        for idx, row in enumerate(selected):
+            if _bucket(row) != bucket:
+                continue
+            score = _strength(row)
+            if weakest_idx is None or score < weakest_score:
+                weakest_idx = idx
+                weakest_score = score
+        return weakest_idx
+
+    def try_add(row, allow_bucket_replace=False):
+        item = _canonicalize_source_entry(row)
+        url = str(item.get("url") or "").strip()
+        if not url:
+            return False
+
+        bucket = _bucket(item)
+        new_score = _strength(item)
+
+        if url in selected_index_by_url:
+            idx = selected_index_by_url[url]
+            existing = selected[idx]
+            if new_score <= _strength(existing):
+                return False
+            existing_bucket = _bucket(existing)
+            if bucket != existing_bucket and bucket in quotas and bucket_counts[bucket] >= quotas[bucket]:
+                if not allow_bucket_replace:
+                    return False
+                weakest_idx = _find_weakest_index_for_bucket(bucket)
+                if weakest_idx is None:
+                    return False
+                weakest = selected[weakest_idx]
+                if new_score <= _strength(weakest):
+                    return False
+                _replace_index(weakest_idx, item)
+                return True
+            _replace_index(idx, item)
+            return True
+
+        if bucket in quotas and bucket_counts[bucket] >= quotas[bucket]:
+            if not allow_bucket_replace:
+                return False
+            weakest_idx = _find_weakest_index_for_bucket(bucket)
+            if weakest_idx is None:
+                return False
+            weakest = selected[weakest_idx]
+            if new_score <= _strength(weakest):
+                return False
+            _replace_index(weakest_idx, item)
+            return True
+
+        idx = len(selected)
+        selected.append(item)
+        selected_index_by_url[url] = idx
+        _inc_bucket(bucket)
+        return True
+
+    ranked_targets = []
+    top_chunks = []
+    if isinstance(rerank_plan, dict):
+        ranked_targets = rerank_plan.get("ranked_targets") or []
+        top_chunks = rerank_plan.get("top_chunks") or []
+
+    preferred_order = (
+        "official_docs",
+        "active_repositories",
+        "issue_problem_sources",
+        "similar_solutions",
+        "regional_community",
+    )
+
+    by_bucket = {k: [] for k in preferred_order}
+
+    for row in ranked_targets:
+        item = _canonicalize_source_entry({
+            "url": row.get("url"),
+            "title": row.get("title") or row.get("source_title"),
+            "source_title": row.get("source_title") or row.get("title"),
+            "source_role": row.get("source_role"),
+            "source_bucket": row.get("source_bucket"),
+            "kind": row.get("kind"),
+            "why_relevant": row.get("why_extract") or "promoted from rerank target",
+            "confidence": "medium",
+            "notes": "promoted from rerank_plan.ranked_targets",
+        })
+        bucket = _bucket(item)
+        if bucket in by_bucket:
+            by_bucket[bucket].append(item)
+
+    for row in top_chunks:
+        item = _canonicalize_source_entry({
+            "url": row.get("source_url") or row.get("url"),
+            "title": row.get("title") or row.get("source_title"),
+            "source_title": row.get("source_title") or row.get("title"),
+            "source_role": row.get("source_role"),
+            "source_bucket": row.get("source_bucket"),
+            "kind": row.get("kind"),
+            "why_relevant": row.get("why_extract") or "promoted from rerank top chunk",
+            "confidence": "medium",
+            "notes": "promoted from rerank_plan.top_chunks",
+        })
+        bucket = _bucket(item)
+        if bucket in by_bucket:
+            by_bucket[bucket].append(item)
+
+    # 1) seed from rerank
+    for bucket in preferred_order:
+        for item in by_bucket[bucket]:
+            try_add(item, allow_bucket_replace=False)
+
+    # 2) curated backfill may replace weaker bucket entries and wrong duplicate-role URLs
+    for row in curated_sources or []:
+        try_add(row, allow_bucket_replace=True)
+
+    # 3) final rerank fill only for remaining free slots
+    for bucket in preferred_order:
+        for item in by_bucket[bucket]:
+            try_add(item, allow_bucket_replace=False)
+
+    limit = sum(quotas.values())
+    return selected[:limit]
+
+
+sources = _merge_sources_with_rerank(sources, _PR_LAST_RERANK_PLAN, mode)
+
+fetch_extraction = _pr_build_fetch_extraction_plan(
+    sources,
+    repo_context=repo_context,
+    install_context=install_context,
+)
+if isinstance(fetch_extraction, dict):
+    fetch_extraction["planned_candidates_count"] = len(fetch_extraction.get("planned_candidates") or [])
+    fetch_extraction["status"] = "implemented_v2"
+    fetch_extraction["strategy"] = "fetch_extraction_plan_from_final_sources_v4"
+context["fetch_extraction"] = fetch_extraction
+context_json.write_text(json.dumps(context, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+sources_payload = {
+
+    "topic": topic,
+    "project_type": project_type,
+    "detected_classes": detected_classes,
+    "class_scores": context["class_scores"],
+    "mode": mode,
+    "mode_reason": mode_reason,
+    "execution_mode": execution_mode,
+    "execution_mode_reason": execution_mode_reason,
+    "model_access_layer": model_access_layer,
+    "human_in_loop": human_in_loop,
+    "requires_api_key": requires_api_key,
+    "supports_background_automation": supports_background_automation,
+    "search_backend": search_backend,
+    "search_backend_reason": search_backend_reason,
+    "retrieval_strategy": retrieval_strategy,
+    "external_search_enabled": external_search_enabled,
+    "external_search_config": external_search_config,
+    "repo_context": repo_context,
+    "install_context": install_context,
+    "memory_first": True,
+    "initial_prompt": prompt,
+    "keywords": context["keywords"],
+    "search_targets": search_targets,
+    "source_priority": context["source_priority"],
+    "query_sets": query_sets,
+    "risk_seeds": context["risk_seeds"],
+    "starting_approach": context["starting_approach"],
+    "local_memory_summary": local_memory_summary,
+    "artifact_dir": artifact_dir,
+    "precheck_log": precheck_log,
+    "artifact_refs": {
+        "context_json": str(context_json),
+        "findings_jsonl": str(findings_jsonl),
+        "provenance_json": str(provenance_json),
+        "precheck_log": precheck_log,
+    },
+    "sources": sources,
+}
+sources_payload["architecture_layers"] = _pr_architecture_layers()
+sources_payload["repo_discovery"] = _PR_LAST_REPO_DISCOVERY
+sources_payload["fetch_extraction"] = _PR_LAST_FETCH_EXTRACTION
+sources_payload["evidence_index"] = _PR_LAST_EVIDENCE_INDEX
+sources_payload["rerank_plan"] = _PR_LAST_RERANK_PLAN
+sources_payload["eval_safety"] = _PR_LAST_EVAL_SAFETY
+sources_json.write_text(json.dumps(sources_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+findings = []
+findings.append(
+    {
+        "id": "finding-project-type",
+        "kind": "classification",
+        "statement": f"Project classified as {project_type}.",
+        "confidence": "medium",
+        "provenance": {"origin_type": "inference", "origin_ref": "prompt-1"},
+    }
+)
+findings.append(
+    {
+        "id": "finding-mode",
+        "kind": "planning",
+        "statement": f"Research mode selected: {mode}.",
+        "confidence": "high",
+        "provenance": {"origin_type": "inference", "origin_ref": "prompt-1"},
+    }
+)
+
+for idx, target in enumerate(search_targets, start=1):
+    findings.append(
+        {
+            "id": f"finding-target-{idx}",
+            "kind": "search_target",
+            "statement": f"Search bucket required: {target}.",
+            "confidence": "high",
+            "provenance": {"origin_type": "inference", "origin_ref": "prompt-1"},
+        }
+    )
+
+for idx, src in enumerate(sources, start=1):
+    src_ref = ensure_source_ref(src.get("url"), src.get("title"))
+    findings.append(
+        {
+            "id": f"finding-source-{idx}",
+            "kind": "source",
+            "statement": f"Curated source selected: {src['title']}.",
+            "confidence": src["confidence"],
+            "provenance": {"origin_type": "source", "origin_ref": src_ref},
+        }
+    )
+
+for idx, risk in enumerate(uniq(risk_seeds), start=1):
+    findings.append(
+        {
+            "id": f"finding-risk-{idx}",
+            "kind": "risk",
+            "statement": risk,
+            "confidence": "medium",
+            "provenance": {"origin_type": "inference", "origin_ref": "prompt-1"},
+        }
+    )
+
+for idx, item in enumerate(uniq(starting_approach), start=1):
+    findings.append(
+        {
+            "id": f"finding-start-{idx}",
+            "kind": "starting_approach",
+            "statement": item,
+            "confidence": "medium",
+            "provenance": {"origin_type": "inference", "origin_ref": "prompt-1"},
+        }
+    )
+
+for idx, item in enumerate(local_memory_summary, start=1):
+    findings.append(
+        {
+            "id": f"finding-memory-{idx}",
+            "kind": "local_memory",
+            "statement": item,
+            "confidence": "low",
+            "provenance": {"origin_type": "local_memory", "origin_ref": f"mem-{idx}"},
+        }
+    )
+
+with findings_jsonl.open("w", encoding="utf-8") as f:
+    for item in findings:
+        f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+provenance_payload = {
+    "topic": topic,
+    "artifact_dir": artifact_dir,
+    "entries": provenance_entries,
+}
+provenance_json.write_text(json.dumps(provenance_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+research_lines = [
+    "# Research Summary",
+    "",
+    "## Topic",
+    topic,
+    "",
+    "## Project type",
+    project_type,
+    "",
+    "## Research mode",
+    mode,
+    f"- reason: {mode_reason}",
+    "",
+    "## Existing local context",
+]
+for item in local_memory_summary:
+    research_lines.append(f"- {item}")
+
+research_lines += [
+    "",
+    "## Search buckets",
+]
+for item in search_targets:
+    research_lines.append(f"- {item}")
+
+research_lines += [
+    "",
+    "## Suggested search queries",
+]
+for bucket, queries in query_sets.items():
+    research_lines.append(f"### {bucket}")
+    for q in queries:
+        research_lines.append(f"- {q}")
+    research_lines.append("")
+
+research_lines += [
+    "## Curated sources",
+]
+if sources:
+    for src in sources:
+        research_lines.append(f"- [{src['source_bucket']}] {src['title']} — {src['url']}")
+        research_lines.append(f"  - why: {src['why_relevant']}")
+        research_lines.append(f"  - notes: {src['notes']}")
+else:
+    research_lines.append("- none captured by curated adapters in this run")
+
+research_lines += [
+    "",
+    "## Structured findings emitted",
+    f"- findings_jsonl: {findings_jsonl}",
+    f"- provenance_json: {provenance_json}",
+    "",
+    "## Recurring risks / patterns",
+]
+for item in uniq(risk_seeds):
+    research_lines.append(f"- {item}")
+
+research_lines += [
+    "",
+    "## Recommended starting approach",
+]
+for item in uniq(starting_approach):
+    research_lines.append(f"- {item}")
+
+research_lines += [
+    "",
+    "## What not to do",
+]
+for item in anti_patterns:
+    research_lines.append(f"- {item}")
+
+research_lines += [
+    "",
+    "## Open questions",
+]
+for item in open_questions:
+    research_lines.append(f"- {item}")
+
+research_md.write_text("\n".join(research_lines).rstrip() + "\n", encoding="utf-8")
+
+print(f"wrote: {context_json}")
+print(f"wrote: {sources_json}")
+print(f"wrote: {findings_jsonl}")
+print(f"wrote: {provenance_json}")
+print(f"wrote: {research_md}")
+PY2
+
+
+# STEP17_INLINE_FETCH_EXTRACTION_V1
+run_fetch_extraction_step17() {
+  local artifact_dir="$1"
+  local helper="/home/agent/bin/project-research-fetch-extract-step29.py"
+  [[ -n "${artifact_dir:-}" ]] || return 0
+  [[ -d "$artifact_dir" ]] || return 0
+  [[ -x "$helper" ]] || return 0
+  python3 "$helper" "$artifact_dir" >/dev/null 2>&1 || true
+}
+
+python3 - "$CONTEXT_JSON" "$SOURCES_JSON" "$FINDINGS_JSONL" "$PROVENANCE_JSON" "$QUALITY_REPORT_JSON" "$RUN_MANIFEST_JSON" "$RUNNER_VERSION" "$SKILL_NAME" "$SKILL_VERSION" "$TOPIC" "$PROMPT" "$ARTIFACT_DIR" "$STARTED_AT" <<'PY3'
+from pathlib import Path
+from datetime import datetime
+import json
+import sys
+
+context_path = Path(sys.argv[1])
+sources_path = Path(sys.argv[2])
+findings_path = Path(sys.argv[3])
+provenance_path = Path(sys.argv[4])
+quality_path = Path(sys.argv[5])
+manifest_path = Path(sys.argv[6])
+runner_version = sys.argv[7]
+skill_name = sys.argv[8]
+skill_version = sys.argv[9]
+topic = sys.argv[10]
+prompt = sys.argv[11]
+artifact_dir = sys.argv[12]
+started_at = sys.argv[13]
+finished_at = datetime.now().astimezone().isoformat()
+
+context = json.loads(context_path.read_text(encoding="utf-8"))
+sources_payload = json.loads(sources_path.read_text(encoding="utf-8"))
+provenance_payload = json.loads(provenance_path.read_text(encoding="utf-8"))
+
+search_targets = context.get("search_targets", [])
+query_sets = context.get("query_sets", {})
+local_memory_summary = context.get("local_memory_summary", [])
+starting_approach = context.get("starting_approach", [])
+anti_patterns = context.get("anti_patterns", [])
+
+passed_gates = []
+failed_gates = []
+warnings = []
+notes = []
+
+if all(target in query_sets for target in search_targets):
+    passed_gates.append("search_targets_have_query_sets")
+else:
+    failed_gates.append("search_targets_have_query_sets")
+
+boilerplate_markers = ["topic workspace exists", "prior outputs may exist"]
+boilerplate_hits = 0
+for item in local_memory_summary:
+    low = item.lower()
+    if any(marker in low for marker in boilerplate_markers):
+        boilerplate_hits += 1
+
+if len(local_memory_summary) == 0:
+    failed_gates.append("no_memory_boilerplate_dominance")
+    warnings.append("local_memory_summary is empty")
+elif boilerplate_hits < len(local_memory_summary):
+    passed_gates.append("no_memory_boilerplate_dominance")
+else:
+    failed_gates.append("no_memory_boilerplate_dominance")
+    warnings.append("local_memory_summary is mostly boilerplate")
+
+if starting_approach and len(starting_approach) >= 3:
+    passed_gates.append("starting_approach_not_generic")
+else:
+    failed_gates.append("starting_approach_not_generic")
+
+if anti_patterns:
+    passed_gates.append("anti_patterns_present")
+else:
+    failed_gates.append("anti_patterns_present")
+
+findings = []
+if findings_path.exists():
+    for line in findings_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            findings.append(json.loads(line))
+
+prov_refs = {entry.get("ref") for entry in provenance_payload.get("entries", [])}
+findings_have_refs = bool(findings) and all(item.get("provenance", {}).get("origin_ref") in prov_refs for item in findings)
+
+if findings and provenance_payload.get("entries") and findings_have_refs:
+    passed_gates.append("provenance_present_for_findings")
+else:
+    failed_gates.append("provenance_present_for_findings")
+    warnings.append("findings/provenance linkage is incomplete")
+
+source_count = len(sources_payload.get("sources", []))
+if source_count == 0:
+    if context.get("mode") in ("quick", "deep"):
+        notes.append("no curated adapter matched the prompt; sources list remains empty")
+    else:
+        notes.append("sources list is empty in planning-only mode")
+else:
+    notes.append(f"curated sources captured: {source_count}")
+
+status = "ok" if not failed_gates else "warning"
+
+quality_report = {
+    "topic": topic,
+    "mode": context.get("mode"),
+    "status": status,
+    "passed_gates": passed_gates,
+    "failed_gates": failed_gates,
+    "warnings": warnings,
+    "notes": notes,
+}
+quality_path.write_text(json.dumps(quality_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+manifest = {
+    "skill_name": skill_name,
+    "skill_version": skill_version,
+    "topic": topic,
+    "mode": context.get("mode"),
+    "mode_reason": context.get("mode_reason"),
+    "execution_mode": context.get("execution_mode"),
+    "execution_mode_reason": context.get("execution_mode_reason"),
+    "model_access_layer": context.get("model_access_layer"),
+    "human_in_loop": context.get("human_in_loop"),
+    "requires_api_key": context.get("requires_api_key"),
+    "supports_background_automation": context.get("supports_background_automation"),
+    "started_at": started_at,
+    "finished_at": finished_at,
+    "runner_version": runner_version,
+    "initial_prompt": prompt,
+    "project_type": context.get("project_type"),
+    "detected_classes": context.get("detected_classes"),
+    "artifact_dir": artifact_dir,
+    "artifacts": [
+        str(context_path),
+        str(Path(artifact_dir) / "precheck.txt"),
+        str(Path(artifact_dir) / "sources.json"),
+        str(findings_path),
+        str(provenance_path),
+        str(quality_path),
+        str(manifest_path),
+        str(Path(artifact_dir) / "RESEARCH.md"),
+    ],
+    "quality_gates": sorted(set(passed_gates + failed_gates)),
+    "status": status,
+}
+manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+print(f"wrote: {quality_path}")
+print(f"wrote: {manifest_path}")
+PY3
+
+run_fetch_extraction_step17 "$ARTIFACT_DIR"
+
+ln -sfn "$ARTIFACT_DIR" "$ARTIFACTS_ROOT/latest"
+
+if [[ -f "$TOPIC_DIR/LOG.md" ]]; then
+  {
+    echo
+    echo "## $(date +%F' '%T) project-research-run $RUNNER_VERSION"
+    echo "- prompt: $PROMPT"
+    echo "- artifact_dir: $ARTIFACT_DIR"
+    echo "- outputs: RESEARCH.md, sources.json, context.json, findings.jsonl, provenance.json, quality_report.json, run_manifest.json"
+  } >> "$TOPIC_DIR/LOG.md"
+fi
+
+echo "== project-research-run $RUNNER_VERSION =="
+echo "topic:            $TOPIC"
+echo "artifacts:        $ARTIFACT_DIR"
+echo
+echo "wrote: $RESEARCH_MD"
+echo "wrote: $SOURCES_JSON"
+echo "wrote: $CONTEXT_JSON"
+echo "wrote: $FINDINGS_JSONL"
+echo "wrote: $PROVENANCE_JSON"
+echo "wrote: $QUALITY_REPORT_JSON"
+echo "wrote: $RUN_MANIFEST_JSON"
+echo
+echo "Next step: inspect outputs and validate phase5 skeleton status"

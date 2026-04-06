@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+META_LAUNCHER="/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  codex-frontdoor-preflight "<естественный запрос>"
+  codex-frontdoor-preflight --topic <topic> "<естественный запрос>"
+  codex-frontdoor-preflight --task-request "<естественный запрос>"
+
+Notes:
+  - This is the Codex-chat binding helper, not a separate human workflow.
+  - It runs the global AI meta-launcher in preflight-only mode for substantial Codex work.
+  - The resulting contract/manifest/trace tell Codex whether to stay in the current chat
+    or delegate to a narrower managed/current-state/research backend.
+EOF
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 2
+fi
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+esac
+
+exec python3 "$META_LAUNCHER" --frontdoor-source codex_chat --preflight-only "$@"

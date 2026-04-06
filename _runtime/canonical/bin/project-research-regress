@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUNNER="/home/agent/bin/project-research-run"
+VALIDATOR="/home/agent/bin/validate-project-research-run"
+
+echo "== regression: core quick =="
+"$RUNNER" --mode quick core "Build AI agent server stack with OpenAI Responses API, LangGraph, Pydantic, OpenTelemetry, GitHub workflows, and Prefect orchestration" >/dev/null
+"$VALIDATOR" core latest
+
+echo
+echo "== regression: audit-smoke none =="
+"$RUNNER" --mode none audit-smoke "none-mode regression for frozen phase5 baseline" >/dev/null
+"$VALIDATOR" audit-smoke latest
+
+echo
+echo "REGRESSION OK"

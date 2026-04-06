@@ -1,0 +1,31 @@
+# Portability Core vs OpenClaw Profile
+
+Skill: `__SKILL_NAME__`
+
+## Portable core
+
+Portable core should include:
+
+- the trigger description
+- the workflow intent
+- any runtime-agnostic domain guidance
+
+Portable core should avoid:
+
+- OpenClaw-only metadata assumptions
+- local absolute bridge paths unless the runtime truly requires them
+- provider-specific packaging assumptions
+
+## OpenClaw profile
+
+The OpenClaw profile is where you document:
+
+- `metadata.openclaw.*`
+- bridge path expectations
+- write boundaries
+- network boundaries
+- compatibility requirements for this runtime
+
+## Author rule
+
+If a future port would need to rewrite the section completely, it probably belongs in the OpenClaw profile or in a separate reference note, not in the portable core.

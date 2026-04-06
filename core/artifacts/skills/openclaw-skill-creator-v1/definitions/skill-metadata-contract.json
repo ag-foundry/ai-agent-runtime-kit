@@ -1,0 +1,76 @@
+{
+  "version": "openclaw-skill-creator-v1-universal",
+  "name_pattern": "^[a-z0-9-]+$",
+  "capability_id_pattern": "^[a-z0-9][a-z0-9-]*$",
+  "top_level_allowed": [
+    "name",
+    "description",
+    "license",
+    "allowed-tools",
+    "metadata"
+  ],
+  "top_level_required": [
+    "name",
+    "description",
+    "metadata"
+  ],
+  "creator_required_files": [
+    "SKILL.md",
+    "references/portability-core-vs-profile.md",
+    "references/do-not-copy-literally.md",
+    "references/eval-plan.md"
+  ],
+  "recommended_dirs": [
+    "references",
+    "scripts"
+  ],
+  "enums": {
+    "invocation": [
+      "auto-reference",
+      "manual-task",
+      "isolated-task"
+    ],
+    "maturity": [
+      "draft",
+      "active",
+      "stable",
+      "deprecated"
+    ],
+    "bridge_mode": [
+      "absolute-path-only",
+      "named-or-absolute"
+    ],
+    "write_mode": [
+      "none",
+      "controlled",
+      "explicit-only"
+    ],
+    "network_mode": [
+      "none",
+      "read-only",
+      "explicit-only"
+    ],
+    "lifecycle_stage": [
+      "candidate",
+      "trial",
+      "accepted",
+      "retired"
+    ],
+    "readiness": [
+      "not-evaluated",
+      "review-pack-required",
+      "usable-with-caveats",
+      "usable-now",
+      "blocked"
+    ],
+    "portability": [
+      "openclaw-only-extension",
+      "portable-core-plus-openclaw-profile"
+    ],
+    "trial_method": [
+      "baseline-vs-with-skill",
+      "single-run-smoke",
+      "manual-review-only"
+    ]
+  }
+}

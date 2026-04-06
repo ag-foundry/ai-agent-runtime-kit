@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_REPO_ROOT = Path("/home/agent/agents")
+DEFAULT_TOPIC = "core"
+
+DEFAULT_CURRENT_FOCUS = "Prepare integration blueprint for runtime, memory, search, Obsidian, and OpenClaw"
+DEFAULT_CURRENT_SLICE = "integration blueprint preparation"
+DEFAULT_LAST_COMPLETED_STEP = (
+    "Bootstrapped project-state layer and added protected runtime helper at a73f055"
+)
+DEFAULT_NEXT_STEP = (
+    "Draft and commit integration blueprint slice for runtime + memory + search + Obsidian + OpenClaw"
+)
+DEFAULT_LAST_GREEN_CHECKS = [
+    "runtime-sync-flow.sh -> FLOW_RESULT=OK",
+    "runtime-governance-flow.sh status -> GOVERNANCE_FLOW=OK",
+    "runtime-governance-flow.sh refresh -> GOVERNANCE_FLOW=OK",
+    "project-state-refresh -> STATE_OK",
+]
+DEFAULT_OPEN_RISKS = [
+    "Project-state can become stale if refresh is skipped after significant milestones.",
+    "Snapshot fields must be updated when the active macro-slice changes.",
+]
+DEFAULT_NOTES = [
+    "Project-state is an orientation layer, not a replacement for git, ADRs, TODO, LOG, or artifacts.",
+    "Timestamped history snapshots are optional and should be created deliberately, not on every refresh.",
+]
+
+
+def run_cmd(args: list[str], cwd: Path) -> str:
+    result = subprocess.run(
+        args,
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        err = result.stderr.strip() or result.stdout.strip() or "command failed"
+        raise RuntimeError(f"{' '.join(args)} -> {err}")
+    return result.stdout.strip()
+
+
+def write_if_changed(path: Path, content: str) -> bool:
+    existing = path.read_text(encoding="utf-8") if path.exists() else None
+    if existing == content:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
+def pick_scalar(cli_value: str | None, default_value: str) -> str:
+    if cli_value is not None and cli_value.strip():
+        return cli_value.strip()
+    return default_value
+
+
+def pick_list(cli_values: list[str] | None, default_value: list[str]) -> list[str]:
+    if cli_values:
+        cleaned = [x.strip() for x in cli_values if x and x.strip()]
+        if cleaned:
+            return cleaned
+    return list(default_value)
+
+
+def iso_utc_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def build_key_paths(
+    repo_root: Path,
+    topic_dir: Path,
+    latest_json: Path,
+    latest_md: Path,
+) -> dict[str, str]:
+    return {
+        "repo_root": str(repo_root),
+        "topic_dir": str(topic_dir),
+        "decision_adr": str(topic_dir / "DECISIONS" / "ADR-2026-03-27-project-state-layer.md"),
+        "context": str(topic_dir / "memory" / "context.md"),
+        "todo": str(topic_dir / "TODO.md"),
+        "log": str(topic_dir / "LOG.md"),
+        "latest_json": str(latest_json),
+        "latest_md": str(latest_md),
+        "runtime_readme": str(repo_root / "_runtime" / "README.md"),
+        "runtime_tools_readme": str(repo_root / "_runtime" / "tools" / "README.md"),
+        "runtime_workflow": str(repo_root / "_runtime" / "RUNTIME_SYNC_WORKFLOW.md"),
+        "runtime_manifest": str(repo_root / "_runtime" / "canonical" / "meta" / "runtime-manifest.json"),
+        "runtime_registry": str(repo_root / "_runtime" / "runtime-registry.json"),
+        "protected_working_set": str(repo_root / "_runtime" / "canonical" / "meta" / "protected-working-set.txt"),
+        "project_state_helper": "/home/agent/bin/project-state-refresh",
+    }
+
+
+def render_markdown(state: dict[str, Any]) -> str:
+    git_clean = "YES" if state.get("git_clean") else "NO"
+    lines: list[str] = [
+        "# Project State Snapshot",
+        "",
+        f"Generated at (UTC): `{state['generated_at_utc']}`",
+        f"Topic: `{state['topic']}`",
+        f"Repo root: `{state['repo_root']}`",
+        f"Git branch: `{state['git_branch']}`",
+        f"Git head: `{state['git_head']}`",
+        f"Git clean before refresh: `{git_clean}`",
+        f"History mode: `{'ON' if state.get('history_enabled') else 'OFF'}`",
+        "",
+        "## Where We Are Now",
+        "",
+        f"- Current focus: {state['current_focus']}",
+        f"- Current slice: {state['current_slice']}",
+        f"- Last completed step: {state['last_completed_step']}",
+        f"- Next step: {state['next_step']}",
+        "",
+        "## Last Green Checks",
+        "",
+    ]
+
+    for item in state.get("last_green_checks", []):
+        lines.append(f"- {item}")
+
+    lines.extend(["", "## Source of Truth Paths", ""])
+    for key, value in state.get("key_paths", {}).items():
+        pretty_key = key.replace("_", " ")
+        lines.append(f"- {pretty_key}: `{value}`")
+
+    lines.extend(["", "## Open Risks", ""])
+    for item in state.get("open_risks", []):
+        lines.append(f"- {item}")
+
+    lines.extend(["", "## Notes", ""])
+    for item in state.get("notes", []):
+        lines.append(f"- {item}")
+
+    git_status_short = state.get("git_status_short", [])
+    if git_status_short:
+        lines.extend(["", "## Git Status Before Refresh", ""])
+        for item in git_status_short:
+            lines.append(f"- `{item}`")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Refresh compact project-state snapshots for a topic."
+    )
+    parser.add_argument("--topic", default=DEFAULT_TOPIC)
+    parser.add_argument("--repo-root", default=str(DEFAULT_REPO_ROOT))
+    parser.add_argument("--current-focus")
+    parser.add_argument("--current-slice")
+    parser.add_argument("--last-completed-step")
+    parser.add_argument("--next-step")
+    parser.add_argument("--green-check", action="append")
+    parser.add_argument("--risk", action="append")
+    parser.add_argument("--note", action="append")
+    parser.add_argument("--with-history", action="store_true")
+    args = parser.parse_args()
+
+    repo_root = Path(args.repo_root).expanduser().resolve()
+    topic_dir = (repo_root / args.topic).resolve()
+
+    if not repo_root.exists():
+        print(f"ERROR: repo root not found: {repo_root}", file=sys.stderr)
+        return 1
+    if not topic_dir.exists():
+        print(f"ERROR: topic dir not found: {topic_dir}", file=sys.stderr)
+        return 1
+
+    out_root = topic_dir / "artifacts" / "project-state"
+    out_root.mkdir(parents=True, exist_ok=True)
+
+    latest_json = out_root / "latest.json"
+    latest_md = out_root / "latest.md"
+
+    git_branch = run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], repo_root)
+    git_head = run_cmd(["git", "rev-parse", "--short", "HEAD"], repo_root)
+    git_status_raw = run_cmd(["git", "status", "--short"], repo_root)
+    git_status_short = [line.rstrip() for line in git_status_raw.splitlines() if line.strip()]
+    git_clean = not git_status_short
+
+    state: dict[str, Any] = {
+        "schema": "project-state-v1",
+        "generated_at_utc": iso_utc_now(),
+        "topic": args.topic,
+        "repo_root": str(repo_root),
+        "git_branch": git_branch,
+        "git_head": git_head,
+        "git_clean": git_clean,
+        "history_enabled": bool(args.with_history),
+        "current_focus": pick_scalar(
+            args.current_focus,
+            DEFAULT_CURRENT_FOCUS,
+        ),
+        "current_slice": pick_scalar(
+            args.current_slice,
+            DEFAULT_CURRENT_SLICE,
+        ),
+        "last_completed_step": pick_scalar(
+            args.last_completed_step,
+            DEFAULT_LAST_COMPLETED_STEP,
+        ),
+        "next_step": pick_scalar(
+            args.next_step,
+            DEFAULT_NEXT_STEP,
+        ),
+        "last_green_checks": pick_list(
+            args.green_check,
+            DEFAULT_LAST_GREEN_CHECKS,
+        ),
+        "key_paths": build_key_paths(repo_root, topic_dir, latest_json, latest_md),
+        "open_risks": pick_list(
+            args.risk,
+            DEFAULT_OPEN_RISKS,
+        ),
+        "notes": pick_list(
+            args.note,
+            DEFAULT_NOTES,
+        ),
+        "git_status_short": git_status_short,
+    }
+
+    json_text = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
+    md_text = render_markdown(state)
+
+    latest_json_changed = write_if_changed(latest_json, json_text)
+    latest_md_changed = write_if_changed(latest_md, md_text)
+
+    history_dir = None
+    if args.with_history:
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+        history_dir = out_root / timestamp
+        history_dir.mkdir(parents=True, exist_ok=True)
+        (history_dir / "state.json").write_text(json_text, encoding="utf-8")
+        (history_dir / "state.md").write_text(md_text, encoding="utf-8")
+
+    print("STATE_OK")
+    print(f"topic: {args.topic}")
+    print(f"json: {latest_json}")
+    print(f"md: {latest_md}")
+    print(f"history_mode: {'ON' if args.with_history else 'OFF'}")
+    if history_dir is not None:
+        print(f"history_dir: {history_dir}")
+    print(f"git_branch: {git_branch}")
+    print(f"git_head: {git_head}")
+    print(f"git_clean_before_refresh: {'YES' if git_clean else 'NO'}")
+    print(f"latest_json_changed: {'YES' if latest_json_changed else 'NO'}")
+    print(f"latest_md_changed: {'YES' if latest_md_changed else 'NO'}")
+    print(f"last_green_checks: {len(state['last_green_checks'])}")
+    print(f"open_risks: {len(state['open_risks'])}")
+    print(f"notes: {len(state['notes'])}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

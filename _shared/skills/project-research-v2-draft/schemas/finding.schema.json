@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "project_research_finding",
+  "type": "object",
+  "required": [
+    "id",
+    "kind",
+    "statement",
+    "provenance"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "statement": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "origin_type",
+        "origin_ref"
+      ],
+      "properties": {
+        "origin_type": {
+          "type": "string"
+        },
+        "origin_ref": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

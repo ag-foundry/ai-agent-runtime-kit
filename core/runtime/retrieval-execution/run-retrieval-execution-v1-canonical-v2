@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shutil
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+
+BASE_RUNNER = Path("/home/agent/bin/run-retrieval-execution-v1")
+COMPOSE_WRAPPER = Path("/home/agent/bin/run-retrieval-execution-v1-composed-v2")
+
+
+def eprint(*args) -> None:
+    print(*args, file=sys.stderr)
+
+
+def ensure_executable(path: Path, label: str) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing {label}: {path}")
+
+
+def normalize_value(value: str) -> str:
+    return value.strip().strip("`").strip().strip('"').strip("'")
+
+
+def stream_command(cmd: list[str]) -> tuple[int, str]:
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    collected: list[str] = []
+
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        print(line, end="")
+        collected.append(line)
+
+    rc = proc.wait()
+    return rc, "".join(collected)
+
+
+def safe_read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def safe_write_text(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8")
+
+
+def split_sections(text: str) -> tuple[str, dict[str, str]]:
+    lines = text.replace("\r\n", "\n").splitlines()
+    preamble: list[str] = []
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+
+    for line in lines:
+        m = re.match(r"^##+\s+(.+?)\s*$", line.strip())
+        if m:
+            current = m.group(1).strip()
+            sections.setdefault(current, [])
+            continue
+        if current is None:
+            preamble.append(line)
+        else:
+            sections[current].append(line)
+
+    return "\n".join(preamble).strip(), {
+        key: "\n".join(value).strip() for key, value in sections.items()
+    }
+
+
+def strip_md(text: str) -> str:
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)
+    text = re.sub(r"^[-*]\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^>\s*", "", text, flags=re.MULTILINE)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def split_sentences(text: str) -> list[str]:
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return []
+    return [x.strip() for x in re.split(r"(?<=[.!?])\s+", text) if x.strip()]
+
+
+def extract_section_text(sections: dict[str, str], names: list[str]) -> str:
+    wanted = {name.lower() for name in names}
+    for key, value in sections.items():
+        if key.strip().lower() in wanted and value.strip():
+            return value.strip()
+    return ""
+
+
+def extract_query_from_preamble(preamble: str) -> str:
+    patterns = [
+        re.compile(r"^\*\*Query:\*\*\s*`?(.+?)`?$", re.IGNORECASE),
+        re.compile(r"^Query:\s*(.+)$", re.IGNORECASE),
+        re.compile(r"^\*\*Question:\*\*\s*`?(.+?)`?$", re.IGNORECASE),
+        re.compile(r"^Question:\s*(.+)$", re.IGNORECASE),
+    ]
+    for raw in preamble.splitlines():
+        line = raw.strip()
+        for pattern in patterns:
+            m = pattern.match(line)
+            if m:
+                return strip_md(m.group(1))
+    return ""
+
+
+def extract_query_from_sections(sections: dict[str, str]) -> str:
+    for key, value in sections.items():
+        key_low = key.strip().lower()
+        if key_low == "question" or "question" in key_low:
+            query = strip_md(value)
+            if query:
+                return query
+    return ""
+
+
+def first_sentence(text: str) -> str:
+    for sentence in split_sentences(strip_md(text)):
+        if sentence:
+            return sentence
+    return ""
+
+
+def classify_question_type(query: str) -> str:
+    q = query.lower().strip()
+    if not q:
+        return "unknown"
+    if "next" in q and "step" in q:
+        return "next_step"
+    if any(
+        term in q
+        for term in (
+            "current grounded project status",
+            "current project status",
+            "current project state",
+            "project state",
+            "current state",
+            "status",
+        )
+    ):
+        return "state"
+    if re.match(r"^(is|are|was|were|do|does|did|can|could|should|has|have|had)\b", q):
+        return "yes_no"
+    return "general"
+
+
+def classify_answer_type(opening: str) -> str:
+    low = opening.lower().strip()
+    if not low:
+        return "unknown"
+    if low.startswith("the next confirmed step is"):
+        return "next_step"
+    if low.startswith("the current project state is") or "project state" in low or "status is" in low:
+        return "state"
+    if low.startswith("yes") or low.startswith("no"):
+        return "yes_no"
+    return "general"
+
+
+def evaluate_alignment(question_type: str, answer_type: str) -> tuple[str, list[str]]:
+    notes: list[str] = []
+
+    if question_type == "unknown":
+        return "uncertain", ["query_not_detected"]
+
+    if answer_type == "unknown":
+        return "mismatch", ["answer_opening_not_detected"]
+
+    if question_type == answer_type:
+        return "aligned", []
+
+    if question_type == "state" and answer_type == "next_step":
+        return "mismatch", ["state_question_answered_as_next_step"]
+
+    if question_type == "next_step" and answer_type == "state":
+        return "mismatch", ["next_step_question_answered_as_state"]
+
+    if question_type == "yes_no" and answer_type != "yes_no":
+        return "mismatch", ["yes_no_question_not_answered_directly"]
+
+    notes.append("intent_shape_differs")
+    return "needs_review", notes
+
+
+def extract_artifact_dir(output: str) -> Path | None:
+    patterns = [
+        re.compile(r"^OUTDIR=(.+)$", re.MULTILINE),
+        re.compile(r"^ARTIFACT_DIR=(.+)$", re.MULTILINE),
+        re.compile(r"^ARTIFACT=(.+)$", re.MULTILINE),
+    ]
+    for pattern in patterns:
+        match = pattern.search(output)
+        if match:
+            return Path(normalize_value(match.group(1))).resolve()
+    return None
+
+
+def resolve_artifact_dir(value: str) -> Path:
+    path = Path(value)
+    if path.is_file():
+        path = path.parent
+    return path.resolve()
+
+
+def read_answer_shape(answer_path: Path, fallback_query: str = "") -> dict:
+    text = safe_read_text(answer_path)
+    preamble, sections = split_sections(text)
+
+    query = extract_query_from_preamble(preamble)
+    if not query:
+        query = extract_query_from_sections(sections)
+    if not query:
+        query = fallback_query
+
+    final_answer = extract_section_text(sections, ["Final Answer", "Answer", "Summary"])
+    opening = first_sentence(final_answer or text)
+    question_type = classify_question_type(query)
+    answer_type = classify_answer_type(opening)
+    status, notes = evaluate_alignment(question_type, answer_type)
+
+    return {
+        "path": str(answer_path),
+        "query": query,
+        "question_type": question_type,
+        "opening": opening,
+        "answer_type": answer_type,
+        "status": status,
+        "notes": notes,
+    }
+
+
+def promote_composed_if_needed(artifact_dir: Path, force_promote: bool = False) -> int:
+    base_answer = artifact_dir / "ANSWER.md"
+    composed_answer = artifact_dir / "ANSWER.composed-v2.md"
+    base_backup = artifact_dir / "ANSWER.base-v1.md"
+    selection_meta = artifact_dir / "ANSWER.selection-v2.json"
+
+    if not base_answer.exists():
+        eprint(f"Missing base answer: {base_answer}")
+        return 3
+
+    if not composed_answer.exists():
+        eprint(f"Missing composed answer: {composed_answer}")
+        return 4
+
+    base_shape = read_answer_shape(base_answer)
+    composed_shape = read_answer_shape(composed_answer, fallback_query=base_shape["query"])
+
+    promote = False
+    reason = "keep_base"
+
+    if force_promote:
+        promote = True
+        reason = "force_promote_composed"
+    elif base_shape["status"] == "mismatch" and composed_shape["status"] == "aligned":
+        promote = True
+        reason = "fix_intent_mismatch"
+    elif base_shape["status"] == "unknown" and composed_shape["status"] == "aligned":
+        promote = True
+        reason = "replace_unknown_with_aligned"
+    elif base_shape["status"] == "uncertain" and composed_shape["status"] == "aligned":
+        promote = True
+        reason = "replace_uncertain_with_aligned"
+
+    if promote:
+        if not base_backup.exists():
+            shutil.copy2(base_answer, base_backup)
+        shutil.copy2(composed_answer, base_answer)
+
+    selection = {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "artifact_dir": str(artifact_dir),
+        "decision": "promote_composed" if promote else "keep_base",
+        "reason": reason,
+        "base": base_shape,
+        "composed": composed_shape,
+        "canonical_answer_path": str(base_answer),
+        "base_backup_path": str(base_backup) if base_backup.exists() else "",
+    }
+    safe_write_text(selection_meta, json.dumps(selection, ensure_ascii=False, indent=2) + "\n")
+
+    print(f"SELECTION_DECISION={selection['decision']}")
+    print(f"SELECTION_REASON={reason}")
+    print(f"CANONICAL_ANSWER={base_answer}")
+    if base_backup.exists():
+        print(f"BASE_BACKUP={base_backup}")
+    print(f"SELECTION_META={selection_meta}")
+    print(f"BASE_STATUS={base_shape['status']}")
+    print(f"COMPOSED_STATUS={composed_shape['status']}")
+    print(f"BASE_QUERY={base_shape['query']}")
+    print(f"COMPOSED_QUERY={composed_shape['query']}")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Run retrieval execution v1, compose v2, and promote composed answer to canonical ANSWER.md when it fixes an answer-intent mismatch."
+    )
+    parser.add_argument(
+        "--artifact-dir",
+        help="Process an existing retrieval-execution artifact directly instead of running the base runner.",
+    )
+    parser.add_argument(
+        "--force-promote-composed",
+        action="store_true",
+        help="Always promote ANSWER.composed-v2.md to canonical ANSWER.md after compose.",
+    )
+    args, runner_args = parser.parse_known_args()
+    if runner_args and runner_args[0] == "--":
+        runner_args = runner_args[1:]
+
+    ensure_executable(BASE_RUNNER, "base runner")
+    ensure_executable(COMPOSE_WRAPPER, "compose wrapper")
+
+    if args.artifact_dir:
+        artifact_dir = resolve_artifact_dir(args.artifact_dir)
+        print("MODE=artifact-only")
+        print(f"ARTIFACT_DIR={artifact_dir}")
+        rc = stream_command([str(COMPOSE_WRAPPER), "--artifact-dir", str(artifact_dir)])[0]
+        if rc != 0:
+            eprint(f"Compose wrapper failed for artifact: {artifact_dir}")
+            return rc
+        return promote_composed_if_needed(artifact_dir, force_promote=args.force_promote_composed)
+
+    print("MODE=runner-compose-promote")
+    cmd = [str(COMPOSE_WRAPPER), *runner_args]
+    print("RUNNER_CMD=" + " ".join(cmd))
+    rc, output = stream_command(cmd)
+    if rc != 0:
+        eprint(f"Compose wrapper failed with exit code {rc}")
+        return rc
+
+    artifact_dir = extract_artifact_dir(output)
+    if artifact_dir is None:
+        eprint("Could not detect artifact directory from wrapper output.")
+        return 2
+
+    print(f"ARTIFACT_DIR={artifact_dir}")
+    return promote_composed_if_needed(artifact_dir, force_promote=args.force_promote_composed)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

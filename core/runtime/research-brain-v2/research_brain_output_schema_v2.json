@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local/agents/core/research-brain-state-v2",
+  "title": "Research Brain State V2",
+  "type": "object",
+  "required": [
+    "format",
+    "generated_at",
+    "source_of_truth",
+    "layer_boundary",
+    "intake",
+    "classification",
+    "enforcement",
+    "automation_boundary"
+  ],
+  "properties": {
+    "format": {
+      "const": "core-research-brain-state-v2"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "source_of_truth": {
+      "type": "object"
+    },
+    "layer_boundary": {
+      "type": "object"
+    },
+    "intake": {
+      "type": "object"
+    },
+    "classification": {
+      "type": "object"
+    },
+    "enforcement": {
+      "type": "object"
+    },
+    "automation_boundary": {
+      "type": "object"
+    }
+  }
+}

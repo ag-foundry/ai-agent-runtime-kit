@@ -1,0 +1,233 @@
+#!/home/agent/.venvs/memory/bin/python
+import warnings
+warnings.filterwarnings(
+    'ignore',
+    message=r'The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling.*',
+)
+warnings.filterwarnings(
+    'ignore',
+    message=r'`query` method has been deprecated.*',
+)
+
+import argparse, os, uuid
+from datetime import datetime
+from pathlib import Path
+
+
+def fast_query_once(c, collection, query_text, query_filter, limit):
+    """
+    Stable semantic search for Qdrant across versions:
+    - Uses query_points() (no deprecated .query)
+    - Auto-detects vector name for collections with named vectors (using=...)
+    - Returns objects with .score .document .metadata .id (backward-compatible)
+    """
+    import os
+    import inspect
+    from types import SimpleNamespace
+    from qdrant_client import models
+
+    def _detect_using_vector_name():
+        try:
+            info = c.get_collection(collection)
+            v = info.config.params.vectors
+
+            # Possible shapes depending on client versions
+            if hasattr(v, "vectors") and isinstance(v.vectors, dict) and v.vectors:
+                return next(iter(v.vectors.keys()))
+            if hasattr(v, "__root__") and isinstance(v.__root__, dict) and v.__root__:
+                return next(iter(v.__root__.keys()))
+            if isinstance(v, dict) and v:
+                return next(iter(v.keys()))
+
+            # single unnamed vector config -> no "using" needed
+            return None
+        except Exception:
+            return None
+
+    using_name = _detect_using_vector_name()
+
+    # Detect signature
+    try:
+        sig = inspect.signature(c.query_points)
+    except Exception:
+        sig = None
+
+    qp = None
+
+    # Path A: wrapper supports query_text (some versions)
+    if sig and "query_text" in sig.parameters:
+        kwargs = dict(
+            collection_name=collection,
+            query_text=query_text,
+            query_filter=query_filter,
+            limit=limit,
+        )
+        # some wrappers accept using, some not -> try
+        if using_name:
+            kwargs["using"] = using_name
+        try:
+            qp = c.query_points(**kwargs, with_payload=True)
+        except TypeError:
+            qp = c.query_points(**kwargs)
+    else:
+        # Path B: Document inference
+        doc_kwargs = {"text": query_text}
+        mf = getattr(models.Document, "model_fields", None)
+        if isinstance(mf, dict) and "model" in mf:
+            doc_kwargs["model"] = (
+                os.environ.get("QDRANT_DOC_MODEL")
+                or os.environ.get("QDRANT_INFERENCE_MODEL")
+                or "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+            )
+        doc = models.Document(**doc_kwargs)
+
+        kwargs = dict(
+            collection_name=collection,
+            query=doc,
+            query_filter=query_filter,
+            limit=limit,
+        )
+        if using_name:
+            kwargs["using"] = using_name
+
+        try:
+            qp = c.query_points(**kwargs, with_payload=True)
+        except TypeError:
+            qp = c.query_points(**kwargs)
+
+    pts = getattr(qp, "points", qp)
+
+    out = []
+    for p in pts:
+        payload = getattr(p, "payload", None) or {}
+        doc_text = payload.get("document") or payload.get("text") or payload.get("page_content") or ""
+        md = payload.get("metadata")
+        if md is None:
+            md = {k: v for k, v in payload.items() if k not in ("document", "text", "page_content")}
+
+        out.append(
+            SimpleNamespace(
+                score=getattr(p, "score", None),
+                document=doc_text,
+                metadata=md,
+                id=getattr(p, "id", None),
+            )
+        )
+    return out
+
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://127.0.0.1:6333")
+COLLECTION = os.environ.get("QDRANT_COLLECTION", "memory_notes_v1")
+MODEL = os.environ.get("QDRANT_EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+
+HOME = Path.home()
+AGENTS_DIR = HOME / "agents"
+SHARED_DIR = AGENTS_DIR / "_shared" / "memory"
+
+def qdrant():
+    c = QdrantClient(url=QDRANT_URL)
+    c.set_model(MODEL)
+    return c
+
+def build_filter(topic: str):
+    return Filter(
+        should=[
+            FieldCondition(key="scope", match=MatchValue(value="shared")),
+            FieldCondition(key="topic", match=MatchValue(value=topic)),
+        ]
+    )
+
+def write_note(scope: str, topic: str, text: str) -> Path:
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base = SHARED_DIR if scope == "shared" else (AGENTS_DIR / topic / "memory")
+    base.mkdir(parents=True, exist_ok=True)
+    p = base / f"note-{ts}.md"
+    p.write_text(text.strip() + "\n", encoding="utf-8")
+    return p
+
+def cmd_add(args):
+    c = qdrant()
+    p = write_note(args.scope, args.topic, args.text)
+    meta = {"topic": args.topic, "scope": args.scope, "path": str(p), "ts": datetime.now().isoformat(timespec="seconds")}
+    c.add(collection_name=COLLECTION, documents=[args.text], metadata=[meta], ids=[uuid.uuid4().hex])
+    print(f"OK: saved {p}")
+
+def cmd_search(args):
+    c = qdrant()
+    flt = build_filter(args.topic) if args.topic else None
+    res = fast_query_once(c, COLLECTION, query_text=args.query, query_filter=flt, limit=args.limit)
+    for i, r in enumerate(res, 1):
+        m = r.metadata or {}
+        doc = (m.get("document") or r.document or "").strip()
+        print(f"\n#{i} score={r.score:.3f} scope={m.get('scope')} topic={m.get('topic')}")
+        print(f"path={m.get('path')}")
+        print(doc[:1200])
+
+def cmd_snapshot(args):
+    c = qdrant()
+    out = Path(args.out) if args.out else (AGENTS_DIR / args.topic / "memory" / "context.md")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    res = fast_query_once(c, COLLECTION, query_text=args.query or args.topic, query_filter=build_filter(args.topic), limit=args.limit)
+    lines = [f"# Context snapshot: {args.topic}", f"Generated: {datetime.now().isoformat(timespec='seconds')}", f"Query: {args.query or args.topic}", ""]
+    for i, r in enumerate(res, 1):
+        m = r.metadata or {}
+        doc = (m.get('document') or r.document or '').strip()
+        lines += [f"## {i}. score={r.score:.3f}  [{m.get('scope')} / {m.get('topic')}]", f"- path: {m.get('path')}", "", doc[:1500], ""]
+    out.write_text("\n".join(lines), encoding="utf-8")
+    print(f"OK: wrote {out}")
+
+def iter_md(base: Path):
+    for p in base.rglob("*.md"):
+        if p.name.lower() == "context.md":
+            continue
+        yield p
+
+def cmd_ingest(args):
+    c = qdrant()
+    base = Path(args.path).expanduser().resolve()
+    n = 0
+    for p in iter_md(base):
+        txt = p.read_text(encoding="utf-8", errors="ignore").strip()
+        if not txt:
+            continue
+        meta = {"topic": args.topic, "scope": args.scope, "path": str(p), "ts": datetime.now().isoformat(timespec="seconds")}
+        c.add(collection_name=COLLECTION, documents=[txt], metadata=[meta], ids=[uuid.uuid4().hex])
+        n += 1
+    print(f"OK: ingested {n} markdown files from {base}")
+
+def main():
+    ap = argparse.ArgumentParser(prog="memory")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("add")
+    p.add_argument("--scope", choices=["shared", "topic"], required=True)
+    p.add_argument("--topic", default="core")
+    p.add_argument("--text", required=True)
+    p.set_defaults(func=cmd_add)
+
+    p = sub.add_parser("search")
+    p.add_argument("--topic", default=None)
+    p.add_argument("--limit", type=int, default=8)
+    p.add_argument("query")
+    p.set_defaults(func=cmd_search)
+
+    p = sub.add_parser("snapshot")
+    p.add_argument("--topic", required=True)
+    p.add_argument("--query", default=None)
+    p.add_argument("--limit", type=int, default=12)
+    p.add_argument("--out", default=None)
+    p.set_defaults(func=cmd_snapshot)
+
+    p = sub.add_parser("ingest")
+    p.add_argument("--scope", choices=["shared", "topic"], required=True)
+    p.add_argument("--topic", required=True)
+    p.add_argument("path")
+    p.set_defaults(func=cmd_ingest)
+
+    args = ap.parse_args()
+    args.func(args)
+
+if __name__ == "__main__":
+    main()

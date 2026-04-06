@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+META_LAUNCHER="/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py"
+AGENTS_ROOT="${HOME}/agents"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  agent-exec "<естественный запрос>"
+  agent-exec --task-request "<естественный запрос>"
+  agent-exec --topic <topic> "<естественный запрос>"
+  agent-exec <topic> <prompt...>                    # compatibility topic-mode
+  agent-exec --compat-topic <topic> "<prompt...>"   # explicit compatibility topic-mode
+
+Examples:
+  agent-exec "проверь последний прогон"
+  agent-exec --topic core "собери чекпоинт по ветке"
+  agent-exec --topic core "разберись, как сейчас устроен research"
+  agent-exec core "подними память по теме и предложи следующий шаг"
+
+Notes:
+  - По умолчанию это глобальный AI meta-launcher для managed workflows.
+  - Старый positional form <topic> <prompt> сохранён только как compatibility route.
+  - Env AGENT_MODE=readonly|edit управляет default write mode для fallback AI execution.
+EOF
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 2
+fi
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+esac
+
+if [[ ! -f "$META_LAUNCHER" ]]; then
+  echo "ERROR: meta-launcher backend not found: $META_LAUNCHER" >&2
+  exit 1
+fi
+
+if [[ $# -ge 2 && "${1:0:1}" != "-" && -d "$AGENTS_ROOT/$1" ]]; then
+  TOPIC="$1"
+  shift
+  exec python3 "$META_LAUNCHER" --compat-topic "$TOPIC" --task-request "$*"
+fi
+
+exec python3 "$META_LAUNCHER" "$@"

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "project_research_context",
+  "type": "object",
+  "required": [
+    "topic",
+    "project_type",
+    "detected_classes",
+    "mode",
+    "search_targets",
+    "query_sets",
+    "risk_seeds",
+    "starting_approach"
+  ],
+  "properties": {
+    "topic": {
+      "type": "string"
+    },
+    "project_type": {
+      "type": "string"
+    },
+    "detected_classes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "none",
+        "quick",
+        "deep"
+      ]
+    },
+    "mode_reason": {
+      "type": "string"
+    },
+    "search_targets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "query_sets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "risk_seeds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "starting_approach": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "local_memory_summary": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

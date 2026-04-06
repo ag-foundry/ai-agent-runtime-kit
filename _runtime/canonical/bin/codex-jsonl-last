@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+import json, sys
+
+path = sys.argv[1]
+last = None
+
+def set_last(v):
+    global last
+    if isinstance(v, str) and v.strip():
+        last = v.strip()
+
+def scan(d):
+    if not isinstance(d, dict):
+        return
+    for k in ("text", "message", "output_text"):
+        set_last(d.get(k))
+    c = d.get("content")
+    if isinstance(c, list):
+        parts = []
+        for it in c:
+            if isinstance(it, dict):
+                t = it.get("text") or it.get("value")
+                if isinstance(t, str) and t.strip():
+                    parts.append(t.strip())
+        if parts:
+            set_last("\n".join(parts))
+
+with open(path, "r", encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            o = json.loads(line)
+        except Exception:
+            continue
+
+        item = o.get("item")
+        if isinstance(item, dict) and item.get("type") in ("agent_message","assistant_message","final_message"):
+            scan(item)
+
+        # fallback: sometimes text is on top-level
+        scan(o)
+
+print(last or "", end="")

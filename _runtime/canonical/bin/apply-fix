@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TPL_DIR="$HOME/agents/_shared/templates/bin"
+mkdir -p "$TPL_DIR"
+
+cmd="${1:-}"
+
+usage() {
+  echo "Usage:"
+  echo "  apply-fix <name>        # install from templates to ~/bin and check"
+  echo "  apply-fix --list        # list available templates"
+  echo "  apply-fix --sync        # sync executable commands from ~/bin into templates (no backups)"
+}
+
+if [[ -z "$cmd" ]]; then usage; exit 2; fi
+
+if [[ "$cmd" == "--list" ]]; then
+  ls -la "$TPL_DIR"
+  exit 0
+fi
+
+if [[ "$cmd" == "--sync" ]]; then
+  find "$HOME/bin" -maxdepth 1 -type f -perm -u=x \
+    ! -name "*.bak*" ! -name "*.bak_fix*" ! -name "*.bak_lastfix*" ! -name "*.cleanbak*" ! -name "*.bak_rebuild*" \
+    -print0 | xargs -0 -I{} cp -a "{}" "$TPL_DIR/" 2>/dev/null || true
+  echo "OK: synced executable templates from ~/bin to $TPL_DIR"
+  exit 0
+fi
+
+NAME="$cmd"
+SRC="$TPL_DIR/$NAME"
+DST="$HOME/bin/$NAME"
+
+if [[ ! -f "$SRC" ]]; then
+  echo "ERROR: template not found: $SRC"
+  echo "Try: apply-fix --list"
+  exit 1
+fi
+
+install -m 0755 "$SRC" "$DST"
+
+if [[ "$NAME" == *.py ]] || [[ "$NAME" =~ ^(memory|graphmem|graphmem-recall|agent-run-report|codex-jsonl-last|agent-usage)$ ]]; then
+  ~/.venvs/memory/bin/python -m py_compile "$DST" && echo "OK: py_compile $DST"
+else
+  bash -n "$DST" && echo "OK: bash -n $DST"
+fi
+
+echo "OK: installed $DST from $SRC"

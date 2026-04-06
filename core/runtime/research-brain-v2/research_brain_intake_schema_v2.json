@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local/agents/core/research-brain-intake-v2",
+  "title": "Research Brain Intake V2",
+  "type": "object",
+  "required": [
+    "format",
+    "intake_id",
+    "task_kind",
+    "topic",
+    "focus_area",
+    "history_scope",
+    "requires_new_experiment_run",
+    "needs_external_sources",
+    "needs_cross_topic_search",
+    "proof_class_change",
+    "paused_line_ids",
+    "requested_capabilities",
+    "constraints",
+    "seed_artifacts",
+    "durable_writeback_required"
+  ],
+  "properties": {
+    "format": {
+      "const": "core-research-brain-intake-v2"
+    },
+    "intake_id": {
+      "type": "string"
+    },
+    "task_kind": {
+      "type": "string"
+    },
+    "topic": {
+      "type": "string"
+    },
+    "focus_area": {
+      "type": "string"
+    },
+    "history_scope": {
+      "type": "string"
+    },
+    "target_line_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "deferred_resume_line_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requires_new_experiment_run": {
+      "type": "boolean"
+    },
+    "needs_external_sources": {
+      "type": "boolean"
+    },
+    "needs_cross_topic_search": {
+      "type": "boolean"
+    },
+    "proof_class_change": {
+      "type": "boolean"
+    },
+    "paused_line_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requested_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "seed_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "history_status": {
+      "type": "string"
+    },
+    "durable_context_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "registry_scope": {
+      "type": "string"
+    },
+    "writeback_targets": {
+      "type": "object"
+    },
+    "writeback_candidates": {
+      "type": "object"
+    },
+    "portfolio_seed": {
+      "type": "object"
+    },
+    "durable_writeback_required": {
+      "type": "boolean"
+    }
+  }
+}

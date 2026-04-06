@@ -1,0 +1,31 @@
+{
+  "version": "openclaw-pack-selection-trace-v1",
+  "required_top_level": [
+    "format",
+    "run_root",
+    "skill_name",
+    "pack_mode",
+    "plan_source",
+    "selection_confidence",
+    "selection_policy_path",
+    "candidate_cases",
+    "source_artifacts",
+    "warnings"
+  ],
+  "required_candidate_case_keys": [
+    "case_id",
+    "selected",
+    "selection_class",
+    "selection_reason"
+  ],
+  "required_source_artifact_keys": [
+    "path",
+    "artifact_kind",
+    "requested_role",
+    "resolved_role",
+    "raw_or_derived",
+    "currentness",
+    "contamination_risk",
+    "relative_weight"
+  ]
+}

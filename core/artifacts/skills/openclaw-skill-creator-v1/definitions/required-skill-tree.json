@@ -1,0 +1,13 @@
+{
+  "version": "openclaw-skill-creator-v1",
+  "required_files": [
+    "SKILL.md",
+    "references/portability-core-vs-profile.md",
+    "references/do-not-copy-literally.md",
+    "references/eval-plan.md"
+  ],
+  "recommended_dirs": [
+    "references",
+    "scripts"
+  ]
+}

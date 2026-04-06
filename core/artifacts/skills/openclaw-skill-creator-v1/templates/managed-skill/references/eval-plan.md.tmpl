@@ -1,0 +1,24 @@
+# Eval Plan
+
+Skill: `__SKILL_NAME__`
+
+## Minimum v1 expectation
+
+- define baseline-vs-with-skill cases
+- use one-skill-under-test isolation
+- save raw outputs
+- write completed pair reviews
+- apply readiness gates only after reviews exist
+
+## Minimum case checklist
+
+- one direct skill-use case
+- one edge or refusal case
+- one case that checks whether the skill adds meaningful value over baseline
+- one case that would be invalidated clearly if the harness faults or prompt/session metadata drifts
+
+## Honesty rule
+
+If baseline already solves the task from workspace bootstrap context, record that as evidence.
+That is not a failure to hide.
+It is a lifecycle signal that the managed-skill delta may still be weak.

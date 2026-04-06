@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "project_research_run_manifest",
+  "type": "object",
+  "required": [
+    "skill_name",
+    "skill_version",
+    "topic",
+    "mode",
+    "started_at",
+    "artifacts"
+  ],
+  "properties": {
+    "skill_name": {
+      "type": "string"
+    },
+    "skill_version": {
+      "type": "string"
+    },
+    "topic": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "finished_at": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "quality_gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

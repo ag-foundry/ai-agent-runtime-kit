@@ -1,0 +1,6 @@
+cases:
+  - id: official_first
+    rule: "official docs should outrank forums when both are available"
+
+  - id: no_fake_research
+    rule: "sources.json must not imply completed research if sources list is empty"

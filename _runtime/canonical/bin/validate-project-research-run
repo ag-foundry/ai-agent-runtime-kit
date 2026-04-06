@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import json
+import sys
+
+from jsonschema import Draft202012Validator as V
+
+
+def fail(msg: str, code: int = 1) -> None:
+    print(f"ERROR: {msg}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def require_file(path: Path) -> None:
+    if not path.exists():
+        fail(f"missing file: {path}")
+    if path.is_file() and path.stat().st_size == 0:
+        fail(f"empty file: {path}")
+
+
+def load_json(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        fail(f"missing file: {path}")
+    except json.JSONDecodeError as e:
+        fail(f"invalid json in {path}: {e}")
+
+
+def normalize_sources(payload, path: Path):
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        sources = payload.get("sources")
+        if isinstance(sources, list):
+            return sources
+    fail(f"unsupported sources payload shape in {path}")
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        fail("usage: validate-project-research-run <topic> [latest|artifact_dir]")
+
+    topic = sys.argv[1]
+    selector = sys.argv[2] if len(sys.argv) >= 3 else "latest"
+
+    skill_root = Path("/home/agent/agents/_shared/skills/project-research-v2-draft")
+    topic_root = Path("/home/agent/agents") / topic
+    research_root = topic_root / "artifacts" / "research"
+
+    if selector == "latest":
+        latest_link = research_root / "latest"
+        if not latest_link.exists():
+            fail(f"latest symlink not found: {latest_link}")
+        artifact_dir = latest_link.resolve()
+    else:
+        artifact_dir = Path(selector).resolve()
+
+    if not artifact_dir.exists():
+        fail(f"artifact dir not found: {artifact_dir}")
+
+    context_path = artifact_dir / "context.json"
+    findings_path = artifact_dir / "findings.jsonl"
+    provenance_path = artifact_dir / "provenance.json"
+    quality_path = artifact_dir / "quality_report.json"
+    manifest_path = artifact_dir / "run_manifest.json"
+    sources_path = artifact_dir / "sources.json"
+    research_md_path = artifact_dir / "RESEARCH.md"
+
+    for path in [
+        context_path,
+        findings_path,
+        provenance_path,
+        quality_path,
+        manifest_path,
+        sources_path,
+        research_md_path,
+    ]:
+        require_file(path)
+
+    context = load_json(context_path)
+    manifest = load_json(manifest_path)
+    provenance = load_json(provenance_path)
+    quality = load_json(quality_path)
+    sources_payload = load_json(sources_path)
+    sources = normalize_sources(sources_payload, sources_path)
+
+    context_schema = load_json(skill_root / "schemas" / "context.schema.json")
+    manifest_schema = load_json(skill_root / "schemas" / "run_manifest.schema.json")
+    finding_schema = load_json(skill_root / "schemas" / "finding.schema.json")
+    source_schema = load_json(skill_root / "schemas" / "source.schema.json")
+
+    V(context_schema).validate(context)
+    V(manifest_schema).validate(manifest)
+
+    findings = []
+    for line_no, line in enumerate(findings_path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as e:
+            fail(f"invalid json line in findings.jsonl at line {line_no}: {e}")
+        V(finding_schema).validate(obj)
+        findings.append(obj)
+
+    for idx, src in enumerate(sources, start=1):
+        try:
+            V(source_schema).validate(src)
+        except Exception as e:
+            fail(f"invalid source object #{idx}: {e}")
+
+    prov_entries = provenance.get("entries", [])
+    if not isinstance(prov_entries, list):
+        fail("provenance entries must be a list")
+
+    prov_refs = {entry.get("ref") for entry in prov_entries}
+    missing_refs = [
+        item["id"]
+        for item in findings
+        if item.get("provenance", {}).get("origin_ref") not in prov_refs
+    ]
+    if missing_refs:
+        fail(f"missing provenance refs for findings: {missing_refs}")
+
+    mode = context.get("mode")
+    source_count = len(sources)
+
+    if quality.get("status") != "ok":
+        fail(f"quality status is not ok: {quality.get('status')}")
+
+    if mode == "none" and source_count != 0:
+        fail(f"none mode must have 0 sources, got {source_count}")
+
+    if mode == "quick" and source_count > 6:
+        fail(f"quick mode budget exceeded: {source_count} > 6")
+
+    if mode == "deep" and source_count > 10:
+        fail(f"deep mode budget exceeded: {source_count} > 10")
+
+    manifest_gates = manifest.get("quality_gates", [])
+    if not isinstance(manifest_gates, list):
+        fail("run_manifest quality_gates must be a list")
+
+    print("VALIDATION OK")
+    print(f"topic    : {topic}")
+    print(f"artifact : {artifact_dir}")
+    print(f"mode     : {mode}")
+    print(f"findings : {len(findings)}")
+    print(f"sources  : {source_count}")
+    print(f"prov     : {len(prov_entries)}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,10 @@
+cases:
+  - id: website_analytics
+    prompt: "Новый проект: сайт с аналитикой продаж и выбором платформы"
+    expected_project_type: "mixed"
+    expected_classes: ["website", "analytics", "business"]
+
+  - id: infra_platform
+    prompt: "Новый инфраструктурный проект с внешней платформой и рисками интеграции"
+    expected_project_type: "mixed"
+    expected_classes: ["infrastructure", "business"]

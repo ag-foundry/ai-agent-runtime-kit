@@ -1,0 +1,76 @@
+{
+  "version": "openclaw-promotion-checklist-v1",
+  "required_top_level": [
+    "format",
+    "case_set_id",
+    "skill_name",
+    "registry_manifest_path",
+    "source_run_root",
+    "machine_requirements",
+    "reproducibility",
+    "compatibility",
+    "rollback",
+    "human_review"
+  ],
+  "required_machine_requirement_keys": [
+    "required_registry_status",
+    "required_readiness_verdict",
+    "minimum_completed_reviews",
+    "minimum_meaningful_delta_count",
+    "require_zero_pending_reviews",
+    "require_zero_invalidated_reviews",
+    "require_compatibility_ok",
+    "require_reproducible_case_regeneration",
+    "require_complete_provenance",
+    "require_rollback_pack"
+  ],
+  "required_reproducibility_keys": [
+    "regen_run_root",
+    "expected_case_source_type"
+  ],
+  "required_compatibility_keys": [
+    "harness_runner"
+  ],
+  "required_rollback_keys": [
+    "rollback_pack_manifest",
+    "required_restore_sources",
+    "rollback_commands"
+  ],
+  "required_human_review_keys": [
+    "required",
+    "checks"
+  ],
+  "required_provenance_keys": [
+    "report_path",
+    "minimum_path_level_contexts",
+    "minimum_required_file_anchors",
+    "required_anchor_roles"
+  ],
+  "required_human_check_keys": [
+    "check_id",
+    "summary"
+  ],
+  "allowed_registry_status_values": [
+    "accepted",
+    "candidate",
+    "superseded"
+  ],
+  "allowed_readiness_verdicts": [
+    "usable now",
+    "usable with caveats",
+    "not yet ready"
+  ],
+  "allowed_case_source_types": [
+    "accepted-case-set"
+  ],
+  "known_provenance_anchor_roles": [
+    "registry-manifest",
+    "accepted-case-file",
+    "source-case-file",
+    "source-review-file",
+    "readiness-summary-file",
+    "readiness-run-summary",
+    "rollback-covered-file",
+    "assistant-output-anchor"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "format": "core-context-router-working-set-v1",
+  "required_fields": [
+    "selected_mode",
+    "primary_target",
+    "compare_targets",
+    "analytical_contour",
+    "execution_contour",
+    "warning_signals"
+  ]
+}

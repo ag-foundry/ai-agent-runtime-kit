@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local/agents/core/experiment-intelligence/experiment-registry-v1",
+  "title": "Experiment Registry V1",
+  "type": "object",
+  "required": [
+    "format",
+    "scope",
+    "generated_at",
+    "source_manifest",
+    "summary",
+    "roots",
+    "experiments"
+  ],
+  "properties": {
+    "format": {
+      "const": "core-experiment-registry-v1"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "source_manifest": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "included_experiments",
+        "included_roots",
+        "skipped_roots"
+      ],
+      "properties": {
+        "included_experiments": {
+          "type": "integer"
+        },
+        "included_roots": {
+          "type": "integer"
+        },
+        "skipped_roots": {
+          "type": "integer"
+        }
+      }
+    },
+    "roots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_id",
+          "root",
+          "status"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "included_experiment_count": {
+            "type": "integer"
+          },
+          "skipped_review_count": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "experiments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "experiment_id",
+          "source_id",
+          "run_root",
+          "case_id",
+          "target_skill",
+          "classifications"
+        ],
+        "properties": {
+          "experiment_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "run_root": {
+            "type": "string"
+          },
+          "case_id": {
+            "type": "string"
+          },
+          "target_skill": {
+            "type": "string"
+          },
+          "classifications": {
+            "type": "object",
+            "required": [
+              "platform_valid_result",
+              "usefulness_proven_result",
+              "parity_revealing_candidate",
+              "negative_result_worth_remembering"
+            ],
+            "properties": {
+              "platform_valid_result": {
+                "type": "boolean"
+              },
+              "usefulness_proven_result": {
+                "type": "boolean"
+              },
+              "parity_revealing_candidate": {
+                "type": "boolean"
+              },
+              "negative_result_worth_remembering": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

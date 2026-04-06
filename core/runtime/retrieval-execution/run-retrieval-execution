@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+
+DEFAULT_WRAPPER = Path("/home/agent/bin/run-retrieval-execution-default")
+FREEZE_DOC = Path("/home/agent/agents/core/artifacts/architecture/latest-retrieval-execution-canonical-v2-freeze.md")
+
+
+def eprint(*args) -> None:
+    print(*args, file=sys.stderr)
+
+
+def ensure_file(path: Path, label: str) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing {label}: {path}")
+
+
+def clean_passthrough(args: list[str]) -> list[str]:
+    if args and args[0] == "--":
+        return args[1:]
+    return args
+
+
+def stream_command(cmd: list[str]) -> int:
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        print(line, end="")
+
+    return proc.wait()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Stable public retrieval-execution alias routed to the frozen canonical-v2 default wrapper."
+    )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="run",
+        choices=["run", "regress", "full-regress", "status"],
+        help="Execution mode: run | regress | full-regress | status",
+    )
+    parser.add_argument(
+        "passthrough",
+        nargs=argparse.REMAINDER,
+        help="Arguments passed through to the default wrapper. Use -- before passthrough args if needed.",
+    )
+    args = parser.parse_args()
+
+    ensure_file(DEFAULT_WRAPPER, "default wrapper")
+    ensure_file(FREEZE_DOC, "freeze document")
+
+    passthrough = clean_passthrough(args.passthrough)
+
+    print("PUBLIC_ENTRYPOINT=run-retrieval-execution")
+    print(f"DEFAULT_WRAPPER={DEFAULT_WRAPPER}")
+    print(f"FREEZE_DOC={FREEZE_DOC}")
+    print(f"MODE={args.mode}")
+
+    cmd = [str(DEFAULT_WRAPPER), args.mode, *passthrough]
+    print("CMD=" + " ".join(cmd))
+
+    rc = stream_command(cmd)
+    if rc != 0:
+        eprint(f"Public entrypoint failed with exit code {rc}")
+        return rc
+
+    print("PUBLIC_ENTRYPOINT_STATUS=ok")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

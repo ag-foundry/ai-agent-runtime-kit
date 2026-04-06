@@ -1,0 +1,60 @@
+{
+  "format": "openclaw-promotion-checklist-v1",
+  "case_set_id": "__CASE_SET_ID__",
+  "skill_name": "__SKILL_NAME__",
+  "registry_manifest_path": "__REGISTRY_MANIFEST_PATH__",
+  "source_run_root": "__SOURCE_RUN_ROOT__",
+  "machine_requirements": {
+    "required_registry_status": "accepted",
+    "required_readiness_verdict": "usable now",
+    "minimum_completed_reviews": 1,
+    "minimum_meaningful_delta_count": 1,
+    "require_zero_pending_reviews": true,
+    "require_zero_invalidated_reviews": true,
+    "require_compatibility_ok": true,
+    "require_reproducible_case_regeneration": true,
+    "require_complete_provenance": true,
+    "require_rollback_pack": true
+  },
+  "reproducibility": {
+    "regen_run_root": "__REGEN_RUN_ROOT__",
+    "expected_case_source_type": "accepted-case-set"
+  },
+  "compatibility": {
+    "harness_runner": "/home/agent/agents/core/artifacts/skills/openclaw-skill-eval-harness-v1/scripts/run_skill_trial_matrix.py"
+  },
+  "provenance": {
+    "report_path": "__PROVENANCE_REPORT_PATH__",
+    "minimum_path_level_contexts": 1,
+    "minimum_required_file_anchors": 1,
+    "required_anchor_roles": [
+      "registry-manifest",
+      "accepted-case-file",
+      "source-case-file",
+      "source-review-file",
+      "readiness-summary-file"
+    ]
+  },
+  "rollback": {
+    "rollback_pack_manifest": "__ROLLBACK_PACK_MANIFEST__",
+    "required_restore_sources": [
+      "__RESTORE_SOURCE_ONE__"
+    ],
+    "rollback_commands": [
+      "__ROLLBACK_COMMAND_ONE__"
+    ]
+  },
+  "human_review": {
+    "required": true,
+    "checks": [
+      {
+        "check_id": "semantic_contour_strength",
+        "summary": "Confirm that the contour quality is stable and not just a one-run artifact."
+      },
+      {
+        "check_id": "promotion_value",
+        "summary": "Confirm that this contour is worth keeping in the accepted-case registry instead of staying only as historical evidence."
+      }
+    ]
+  }
+}

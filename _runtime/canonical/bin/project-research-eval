@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+try:
+    import yaml
+except Exception:
+    print("ERROR: PyYAML is required", file=sys.stderr)
+    sys.exit(2)
+
+RUNNER = Path("/home/agent/bin/project-research-run")
+VALIDATOR = Path("/home/agent/bin/validate-project-research-run")
+DEFAULT_CASES = Path("/home/agent/agents/_shared/skills/project-research-v2-draft/evals/runner_eval_cases.yaml")
+AGENTS_ROOT = Path("/home/agent/agents")
+
+
+def fail(msg: str, code: int = 1) -> None:
+    print(f"ERROR: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def load_yaml(path: Path):
+    try:
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as e:
+        fail(f"cannot read yaml {path}: {e}")
+
+
+def load_json(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        fail(f"cannot read json {path}: {e}")
+
+
+def artifact_root(topic: str) -> Path:
+    root = AGENTS_ROOT / topic / "artifacts" / "research"
+    if not root.exists():
+        fail(f"artifact root missing for topic '{topic}': {root}")
+    return root
+
+
+def latest_link_path(topic: str) -> Path:
+    return artifact_root(topic) / "latest"
+
+
+def latest_artifact_dir(topic: str) -> Path:
+    root = artifact_root(topic)
+    dirs = []
+    for p in root.iterdir():
+        if p.name == "latest":
+            continue
+        if p.is_dir():
+            dirs.append(p)
+    if not dirs:
+        fail(f"no artifact dirs for topic '{topic}' in {root}")
+    return max(dirs, key=lambda p: p.stat().st_mtime)
+
+
+def snapshot_latest_target(topic: str):
+    latest = latest_link_path(topic)
+    if not latest.exists() and not latest.is_symlink():
+        return None
+    if latest.is_symlink():
+        try:
+            return latest.resolve(strict=False)
+        except Exception:
+            try:
+                raw = os.readlink(latest)
+                return Path(raw)
+            except Exception:
+                return None
+    return None
+
+
+def restore_latest_target(topic: str, target):
+    latest = latest_link_path(topic)
+
+    if target is None:
+        if latest.is_symlink():
+            latest.unlink()
+        return
+
+    if latest.is_symlink() or latest.is_file():
+        latest.unlink()
+
+    latest.symlink_to(str(target))
+
+
+def gather_text(obj) -> str:
+    parts = []
+
+    def walk(x):
+        if isinstance(x, dict):
+            for v in x.values():
+                walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+        elif x is None:
+            return
+        else:
+            parts.append(str(x))
+
+    walk(obj)
+    return "\n".join(parts).lower()
+
+
+def normalize_sources(payload):
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        sources = payload.get("sources")
+        if isinstance(sources, list):
+            return sources
+    fail("unsupported sources payload shape")
+
+
+def summarize_sources(sources):
+    buckets = {}
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        bucket = src.get("bucket") or src.get("source_bucket") or "unknown"
+        buckets[bucket] = buckets.get(bucket, 0) + 1
+    return buckets
+
+
+def run_case(case: dict):
+    errors = []
+
+    case_id = case.get("id", "<no-id>")
+    topic = case.get("topic")
+    mode = case.get("mode")
+    prompt = case.get("prompt")
+
+    if not topic:
+        errors.append("missing topic")
+    if not mode:
+        errors.append("missing mode")
+    if not prompt:
+        errors.append("missing prompt")
+    if errors:
+        return False, errors, Path("-")
+
+    cmd = [str(RUNNER), "--mode", str(mode), str(topic), str(prompt)]
+    env = dict(os.environ)
+
+    execution_mode = case.get("execution_mode")
+    if execution_mode:
+        env["PROJECT_RESEARCH_EXECUTION_MODE"] = str(execution_mode)
+
+    preserve_latest = str(
+        os.environ.get("PROJECT_RESEARCH_EVAL_PRESERVE_LATEST", "1")
+    ).strip().lower() not in {"0", "false", "no"}
+
+    previous_latest_target = None
+    if preserve_latest:
+        try:
+            previous_latest_target = snapshot_latest_target(topic)
+        except Exception:
+            previous_latest_target = None
+
+    artifact_dir = Path("-")
+
+    try:
+        run = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        if run.returncode != 0:
+            errors.append(f"runner failed rc={run.returncode}")
+            if run.stderr.strip():
+                errors.append(f"runner stderr: {run.stderr.strip().splitlines()[-1]}")
+            if run.stdout.strip():
+                errors.append(f"runner stdout: {run.stdout.strip().splitlines()[-1]}")
+            return False, errors, Path("-")
+
+        artifact_dir = latest_artifact_dir(topic)
+
+        vcmd = [str(VALIDATOR), str(topic), str(artifact_dir)]
+        val = subprocess.run(vcmd, capture_output=True, text=True)
+        if val.returncode != 0:
+            errors.append(f"validator failed rc={val.returncode}")
+            if val.stderr.strip():
+                errors.append(f"validator stderr: {val.stderr.strip().splitlines()[-1]}")
+            if val.stdout.strip():
+                errors.append(f"validator stdout: {val.stdout.strip().splitlines()[-1]}")
+            return False, errors, artifact_dir
+
+        context = load_json(artifact_dir / "context.json")
+        manifest = load_json(artifact_dir / "run_manifest.json")
+        quality = load_json(artifact_dir / "quality_report.json")
+        sources_payload = load_json(artifact_dir / "sources.json")
+        sources = normalize_sources(sources_payload)
+        source_count = len(sources)
+        buckets = summarize_sources(sources)
+        quality_text = gather_text(quality)
+        context_text = gather_text(context)
+
+        expected_status = case.get("expected_status")
+        if expected_status is not None:
+            actual_status = quality.get("status")
+            if actual_status != expected_status:
+                errors.append(f"status mismatch: expected={expected_status} actual={actual_status}")
+
+        expected_sources_exact = case.get("expected_sources_exact")
+        if expected_sources_exact is not None and source_count != int(expected_sources_exact):
+            errors.append(f"sources mismatch: expected exact {expected_sources_exact}, actual {source_count}")
+
+        expected_sources_min = case.get("expected_sources_min")
+        if expected_sources_min is not None and source_count < int(expected_sources_min):
+            errors.append(f"sources below minimum: expected >= {expected_sources_min}, actual {source_count}")
+
+        expected_sources_max = case.get("expected_sources_max")
+        if expected_sources_max is not None and source_count > int(expected_sources_max):
+            errors.append(f"sources above maximum: expected <= {expected_sources_max}, actual {source_count}")
+
+        for bucket in case.get("expected_buckets", []) or []:
+            if bucket not in buckets:
+                errors.append(f"missing expected bucket: {bucket}")
+
+        note = case.get("expected_quality_note_contains")
+        if note and str(note).lower() not in quality_text:
+            errors.append(f"quality note text not found: {note}")
+
+        expected_memory_first = case.get("expected_memory_first")
+        if expected_memory_first is not None:
+            actual_memory_first = context.get("memory_first")
+            if actual_memory_first != expected_memory_first:
+                errors.append(
+                    f"memory_first mismatch: expected={expected_memory_first} actual={actual_memory_first}"
+                )
+
+        passed_gates = quality.get("passed_gates") or []
+        for gate in case.get("expected_passed_gates", []) or []:
+            if gate not in passed_gates:
+                errors.append(f"missing expected passed gate: {gate}")
+
+        search_targets = context.get("search_targets") or []
+        for target in case.get("expected_search_targets", []) or []:
+            if target not in search_targets:
+                errors.append(f"missing expected search target: {target}")
+
+        detected_classes = context.get("detected_classes") or []
+        for cls in case.get("expected_detected_classes", []) or []:
+            if cls not in detected_classes:
+                errors.append(f"missing expected detected class: {cls}")
+
+        expected_context_text = case.get("expected_context_text_contains")
+        if expected_context_text and str(expected_context_text).lower() not in context_text:
+            errors.append(f"context text not found: {expected_context_text}")
+
+        expected_execution_mode = case.get("expected_execution_mode")
+        if expected_execution_mode is not None:
+            actual_context_mode = context.get("execution_mode")
+            actual_manifest_mode = manifest.get("execution_mode")
+            if actual_context_mode != expected_execution_mode:
+                errors.append(
+                    f"context execution_mode mismatch: expected={expected_execution_mode} actual={actual_context_mode}"
+                )
+            if actual_manifest_mode != expected_execution_mode:
+                errors.append(
+                    f"manifest execution_mode mismatch: expected={expected_execution_mode} actual={actual_manifest_mode}"
+                )
+
+        expected_requires_api_key = case.get("expected_requires_api_key")
+        if expected_requires_api_key is not None:
+            actual_context_api = context.get("requires_api_key")
+            actual_manifest_api = manifest.get("requires_api_key")
+            if actual_context_api != expected_requires_api_key:
+                errors.append(
+                    f"context requires_api_key mismatch: expected={expected_requires_api_key} actual={actual_context_api}"
+                )
+            if actual_manifest_api != expected_requires_api_key:
+                errors.append(
+                    f"manifest requires_api_key mismatch: expected={expected_requires_api_key} actual={actual_manifest_api}"
+                )
+
+        return len(errors) == 0, errors, artifact_dir
+
+    finally:
+        if preserve_latest:
+            try:
+                restore_latest_target(topic, previous_latest_target)
+            except Exception as e:
+                print(
+                    f"WARNING: failed to restore latest for topic '{topic}': {e}",
+                    file=sys.stderr,
+                )
+
+
+def usage() -> None:
+    print("usage:")
+    print("  project-research-eval [all]")
+    print("  project-research-eval --list")
+    print("  project-research-eval <case-id>")
+    print(f"  project-research-eval --cases {DEFAULT_CASES} [all|<case-id>]")
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    cases_path = DEFAULT_CASES
+
+    if not RUNNER.exists():
+        fail(f"runner missing: {RUNNER}")
+    if not VALIDATOR.exists():
+        fail(f"validator missing: {VALIDATOR}")
+
+    if args[:1] == ["--cases"]:
+        if len(args) < 2:
+            fail("--cases requires a path")
+        cases_path = Path(args[1])
+        args = args[2:]
+
+    if not cases_path.exists():
+        fail(f"cases file missing: {cases_path}")
+
+    data = load_yaml(cases_path)
+    cases = data.get("cases")
+    if not isinstance(cases, list) or not cases:
+        fail(f"no cases found in {cases_path}")
+
+    case_map = {}
+    for case in cases:
+        cid = case.get("id")
+        if not cid:
+            fail(f"case without id in {cases_path}")
+        if cid in case_map:
+            fail(f"duplicate case id: {cid}")
+        case_map[cid] = case
+
+    if not args:
+        target = "all"
+    else:
+        target = args[0]
+
+    if target in {"-h", "--help"}:
+        usage()
+        return 0
+
+    if target == "--list":
+        for cid in case_map:
+            print(cid)
+        return 0
+
+    if target == "all":
+        selected_cases = list(case_map.values())
+    else:
+        if target not in case_map:
+            fail(f"unknown case id: {target}")
+        selected_cases = [case_map[target]]
+
+    passed = 0
+    failed = 0
+
+    for case in selected_cases:
+        ok, errors, artifact_dir = run_case(case)
+        cid = case.get("id", "<no-id>")
+        if ok:
+            print(f"PASS {cid}  artifact={artifact_dir}")
+            passed += 1
+        else:
+            print(f"FAIL {cid}  artifact={artifact_dir}")
+            for err in errors:
+                print(f"  - {err}")
+            failed += 1
+
+    total = passed + failed
+    print(f"SUMMARY total={total} failed={failed} passed={passed}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

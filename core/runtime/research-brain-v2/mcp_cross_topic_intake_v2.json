@@ -1,0 +1,65 @@
+{
+  "format": "core-research-brain-intake-v2",
+  "intake_id": "mcp-cross-topic-local-smoke-v1",
+  "task_kind": "cross-topic-intake",
+  "topic": "mcp",
+  "focus_area": "connector-candidate-selection",
+  "history_scope": "mcp-topic-direction-cross-topic-smoke",
+  "target_line_id": null,
+  "deferred_resume_line_id": null,
+  "requires_new_experiment_run": false,
+  "needs_external_sources": false,
+  "needs_cross_topic_search": true,
+  "proof_class_change": false,
+  "paused_line_ids": [],
+  "requested_capabilities": [
+    "task intake classification",
+    "bounded local search-depth control",
+    "relevant steering and memory pull-in",
+    "cross-topic execution routing",
+    "next-step portfolio generation",
+    "post-run writeback planning"
+  ],
+  "constraints": [
+    "Do not build a broad MCP framework or custom registry layer.",
+    "Do not start a new large implementation line.",
+    "Keep the smoke local-only and bounded.",
+    "Do not reuse paused skills-line holds unless they are actually relevant."
+  ],
+  "seed_artifacts": [
+    "/home/agent/agents/mcp/artifacts/2026-04-03-cross-project-reuse-smoke-test.md",
+    "/home/agent/agents/core/PROJECT-STEERING.md",
+    "/home/agent/agents/core/artifacts/audit/curated/2026-04-03-full-architecture-audit-v1.md",
+    "/home/agent/agents/mcp/TODO.md"
+  ],
+  "durable_context_inputs": [
+    "/home/agent/agents/mcp/AGENTS.md",
+    "/home/agent/agents/mcp/LOG.md",
+    "/home/agent/agents/mcp/TODO.md",
+    "/home/agent/agents/mcp/memory/index.md",
+    "/home/agent/agents/core/PROJECT-STEERING.md"
+  ],
+  "registry_scope": "relevant-only",
+  "history_status": "cross-topic-local-smoke-on-mcp-planning-surface",
+  "writeback_targets": {
+    "log": "/home/agent/agents/mcp/LOG.md",
+    "todo": "/home/agent/agents/mcp/TODO.md",
+    "memory_index": "/home/agent/agents/mcp/memory/index.md"
+  },
+  "portfolio_seed": {
+    "move_id": "mcp-explicit-connector-candidate",
+    "status": "recommended-now",
+    "title": "Choose one explicit MCP connector candidate from a real need",
+    "why": "The `mcp` topic already has grounded direction not to build a broad framework, and the next productive move is one explicit connector choice followed by one safe smoke-tested integration.",
+    "do_now": [
+      "Choose one connector candidate tied to a real project need.",
+      "Prepare one allow / deny / conditional shortlist for that candidate class.",
+      "Design one safe smoke test with rollback before any broader MCP expansion."
+    ],
+    "do_not_do": [
+      "Do not build a broad MCP management framework or custom registry layer yet.",
+      "Do not open multiple connector lines in parallel from this smoke."
+    ]
+  },
+  "durable_writeback_required": true
+}

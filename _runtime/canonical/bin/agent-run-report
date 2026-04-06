@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+import json, sys, pathlib, datetime
+from collections import defaultdict
+
+p = pathlib.Path(sys.argv[1]).expanduser()
+topic = p.parents[1].name if len(p.parents) >= 2 else "unknown"
+run_id = p.stem
+
+usage = defaultdict(int)
+cmds, files, web, mcp, errors = [], [], [], [], []
+last_agent_message = None
+thread_id = None
+
+def add_unique(lst, x):
+    if x and x not in lst:
+        lst.append(x)
+
+with p.open("r", encoding="utf-8") as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+
+        t = obj.get("type") or obj.get("event") or obj.get("name")
+
+        if t == "thread.started":
+            thread_id = obj.get("thread_id") or obj.get("threadId")
+        elif t == "turn.completed":
+            u = obj.get("usage") or {}
+            for k in ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens"):
+                if k in u and isinstance(u[k], int):
+                    usage[k] += u[k]
+        elif t in ("turn.failed", "error"):
+            errors.append(obj)
+
+        item = obj.get("item")
+        if isinstance(item, dict):
+            it = item.get("type")
+            if it == "command_execution":
+                add_unique(cmds, item.get("command"))
+            elif it in ("file_change", "file_edit", "file_write"):
+                # разные версии могут класть path по-разному
+                path = item.get("path") or item.get("file") or item.get("filename")
+                add_unique(files, path)
+            elif it in ("web_search", "web_search_call"):
+                q = item.get("query") or item.get("text")
+                add_unique(web, q)
+            elif it in ("mcp_tool_call", "tool_call"):
+                name = item.get("name") or item.get("tool") or item.get("tool_name")
+                add_unique(mcp, name)
+            elif it == "agent_message":
+                txt = item.get("text")
+                if txt:
+                    last_agent_message = txt
+
+now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+print(f"# Run summary: {run_id}")
+print(f"- topic: `{topic}`")
+print(f"- jsonl: `{p}`")
+if thread_id:
+    print(f"- thread_id: `{thread_id}`")
+print(f"- generated: {now}")
+print()
+
+if usage:
+    print("## Token usage (sum of turn.completed)")
+    for k in ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens"):
+        if k in usage:
+            print(f"- {k}: {usage[k]}")
+    print()
+
+if cmds:
+    print("## Commands executed")
+    for c in cmds[:200]:
+        print(f"- `{c}`")
+    print()
+
+if files:
+    print("## Files changed (best-effort)")
+    for fp in files[:200]:
+        print(f"- `{fp}`")
+    print()
+
+if web:
+    print("## web_search queries")
+    for q in web[:200]:
+        print(f"- {q}")
+    print()
+
+if mcp:
+    print("## MCP / tool calls")
+    for name in mcp[:200]:
+        print(f"- {name}")
+    print()
+
+if errors:
+    print("## Errors")
+    for e in errors[:10]:
+        print("```json")
+        print(json.dumps(e, ensure_ascii=False, indent=2)[:4000])
+        print("```")
+    print()
+
+if last_agent_message:
+    print("## Last agent message (truncated)")
+    print("```")
+    print(last_agent_message[:2000])
+    print("```")

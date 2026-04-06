@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+import argparse, json, pathlib, datetime
+from collections import defaultdict
+
+ap = argparse.ArgumentParser()
+ap.add_argument("topic")
+ap.add_argument("--days", type=int, default=7)
+args = ap.parse_args()
+
+runs = pathlib.Path.home() / "agents" / args.topic / "runs"
+cutoff = datetime.datetime.now() - datetime.timedelta(days=args.days)
+
+tot = defaultdict(int)
+files = sorted(runs.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+for f in files:
+    mtime = datetime.datetime.fromtimestamp(f.stat().st_mtime)
+    if mtime < cutoff:
+        continue
+    for line in f.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            o = json.loads(line)
+        except Exception:
+            continue
+        if o.get("type") == "turn.completed":
+            u = o.get("usage") or {}
+            for k in ("input_tokens","cached_input_tokens","output_tokens","reasoning_tokens","total_tokens"):
+                v = u.get(k)
+                if isinstance(v, int):
+                    tot[k] += v
+
+print(f"Topic: {args.topic} | last {args.days} days")
+for k in ("input_tokens","cached_input_tokens","output_tokens","reasoning_tokens","total_tokens"):
+    if k in tot:
+        print(f"- {k}: {tot[k]}")
