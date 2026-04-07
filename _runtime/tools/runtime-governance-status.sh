@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="/home/agent/agents"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/runtime-paths.sh"
+
+REPO_ROOT="$(runtime_repo_root)"
 TOOLS_DIR="$REPO_ROOT/_runtime/tools"
 
 STATUS_TOOL="$TOOLS_DIR/status-protected-runtime.sh"
@@ -184,16 +188,16 @@ echo "manifest_in_sync             : $manifest_in_sync"
 
 echo
 echo "== registry summary =="
-echo "registry_exists                  : $registry_exists"
-echo "registry_parse_ok                : $registry_parse_ok"
-echo "registry_schema                  : $registry_schema"
-echo "registry_generated_at_utc        : $registry_generated_at_utc"
+echo "registry_exists                   : $registry_exists"
+echo "registry_parse_ok                 : $registry_parse_ok"
+echo "registry_schema                   : $registry_schema"
+echo "registry_generated_at_utc         : $registry_generated_at_utc"
 echo "registry_manifest_generated_at_utc: $registry_manifest_generated_at_utc"
-echo "registry_required_docs_present   : $registry_required_docs_present"
-echo "registry_required_tools_present  : $registry_required_tools_present"
-echo "registry_executable_tools_ok     : $registry_executable_tools_ok"
-echo "registry_manifest_healthy        : $registry_manifest_healthy"
-echo "registry_registry_healthy        : $registry_registry_healthy"
+echo "registry_required_docs_present    : $registry_required_docs_present"
+echo "registry_required_tools_present   : $registry_required_tools_present"
+echo "registry_executable_tools_ok      : $registry_executable_tools_ok"
+echo "registry_manifest_healthy         : $registry_manifest_healthy"
+echo "registry_registry_healthy         : $registry_registry_healthy"
 
 echo
 echo "== required docs =="
@@ -239,15 +243,7 @@ echo "CHECK.repo_clean=$repo_clean"
 
 if [ "$protected_ok" != "YES" ] || [ "$manifest_ok" != "YES" ] || [ "$registry_ok" != "YES" ] || [ "$required_docs_present" != "YES" ]; then
   echo "GOVERNANCE_STATUS=BLOCK"
-  echo "NEXT=fix_runtime_manifest_registry_or_docs_then_rerun_status"
-  exit 3
-fi
-
-if [ "$repo_clean" != "YES" ]; then
-  echo "GOVERNANCE_STATUS=REVIEW"
-  echo "NEXT=review_git_state_then_commit_or_restore"
-  exit 0
+  exit 2
 fi
 
 echo "GOVERNANCE_STATUS=HEALTHY"
-echo "NEXT=continue_or_make_changes"

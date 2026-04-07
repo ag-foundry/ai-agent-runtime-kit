@@ -8,13 +8,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path("/home/agent/agents")
+from runtime_paths import live_runtime_root, repo_relative, repo_root
+
+REPO_ROOT = repo_root(__file__)
 RUNTIME_ROOT = REPO_ROOT / "_runtime"
 TOOLS_DIR = RUNTIME_ROOT / "tools"
 CANONICAL_ROOT = RUNTIME_ROOT / "canonical"
 CANONICAL_BIN_ROOT = CANONICAL_ROOT / "bin"
 CANONICAL_META_ROOT = CANONICAL_ROOT / "meta"
-LIVE_ROOT = Path("/home/agent/bin")
+LIVE_ROOT = live_runtime_root()
+SCRIPT_PATH = Path(__file__).resolve()
 
 OUTFILE = RUNTIME_ROOT / "runtime-registry.json"
 MANIFEST_FILE = CANONICAL_META_ROOT / "runtime-manifest.json"
@@ -184,7 +187,7 @@ def build_registry() -> dict[str, Any]:
     return {
         "schema_version": "runtime-registry-v1",
         "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        "generated_by": "/home/agent/agents/_runtime/tools/build-runtime-registry.py",
+        "generated_by": repo_relative(SCRIPT_PATH, REPO_ROOT),
         "runtime_layer": {
             "repo_root": str(REPO_ROOT),
             "runtime_root": str(RUNTIME_ROOT),

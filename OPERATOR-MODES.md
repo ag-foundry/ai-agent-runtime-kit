@@ -1,27 +1,37 @@
 # Operator Modes
 
-## Mandatory
+## Required Core Runtime Pieces
 
-- Linux server runtime
+- Linux server
 - Bash
 - Python 3
-- repository checkout at `/home/agent/agents`
-- runtime sync into `/home/agent/bin`
+- repository checkout
+- writable runtime bin directory
+- runtime sync flow under `_runtime/tools/`
 
-## Primary Human Mode
+## Primary Human Entry
 
-- Codex chat is the primary human frontdoor
-- substantial work should start with `/home/agent/bin/codex-frontdoor-preflight`
+When Codex is available, the primary human entry path is:
 
-## Compatibility Mode
+- `codex-frontdoor-preflight`
 
-- `/home/agent/bin/agent-exec` remains available for automation or compatibility workflows
-- direct component calls are not the default operator model
+This is the chat-oriented helper for substantial work that should route through the managed stack.
 
-## Optional
+## Required Compatibility CLI
 
-- VS Code: optional editor/operator shell
-- Codex extension or Codex environment: optional but recommended for the primary frontdoor experience
-- Obsidian: optional human-readable note tooling
-- MCP servers/connectors: optional, selected by policy when available
-- graph/vector helper layers: optional and availability-dependent
+For automation, fallback operation, or environments without Codex chat, the required CLI entrypoint is:
+
+- `agent-exec`
+
+## Optional Operator Workflows
+
+- VS Code
+- Codex extension or Codex environment
+- Obsidian
+- MCP servers and connector integrations
+- graph/vector helper services
+
+## Practical Rule
+
+Use Codex plus `codex-frontdoor-preflight` when you want the primary human workflow.
+Use `agent-exec` when you need compatibility, automation, or non-chat entry.

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/home/agent/agents/_runtime"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/runtime-paths.sh"
+
+REPO_ROOT="$(runtime_repo_root)"
+ROOT="$REPO_ROOT/_runtime"
 CANONICAL="$ROOT/canonical"
-BIN_SRC="/home/agent/bin"
+BIN_SRC="$(runtime_bin_dir)"
 LIST="$CANONICAL/meta/protected-working-set.txt"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -16,6 +21,7 @@ fi
 mkdir -p "$CANONICAL/bin" "$CANONICAL/meta"
 
 echo "== sync protected runtime =="
+echo "repo_root: $REPO_ROOT"
 echo "source   : $BIN_SRC"
 echo "target   : $CANONICAL/bin"
 echo "filelist : $LIST"
@@ -45,7 +51,7 @@ echo "== build hashes from source =="
 while IFS= read -r n; do
   [[ -n "$n" ]] || continue
   sha256sum "$BIN_SRC/$n"
-done < "$LIST" | sed 's#/home/agent/bin/##' | sort > "$TMPDIR/src.sha256"
+done < "$LIST" | sed "s#$BIN_SRC/##" | sort > "$TMPDIR/src.sha256"
 
 echo "== build hashes from canonical =="
 : > "$TMPDIR/canonical.sha256"

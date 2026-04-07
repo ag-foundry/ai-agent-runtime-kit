@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LAUNCHER="/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py"
-BASE="${HOME}/agents"
-SHARED="${BASE}/_shared"
-PROFILES="${SHARED}/profiles"
+AGENT_REPO_ROOT="${AGENT_REPO_ROOT:-${HOME}/agents}"
+LAUNCHER="$AGENT_REPO_ROOT/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_managed_workflow.py"
+BASE="$AGENT_REPO_ROOT"
+SHARED="$BASE/_shared"
+PROFILES="$SHARED/profiles"
 
 PROFILE=""
 NO_CODEX="0"
@@ -17,13 +18,14 @@ Usage:
   agent-topic <topic> [--profile <name>] [--bootstrap-root <dir>] [--no-codex]
 
 Examples:
-  agent-topic vuplus-openatv --profile vuplus
-  agent-topic vpn-netcup2 --profile vpn
-  agent-topic epg-pipeline --profile epg
+  agent-topic server-ops
+  agent-topic release-review --no-codex
+  agent-topic research-sandbox --bootstrap-root "$HOME/work/agents"
 
 Notes:
   - Это compatibility alias поверх managed topic bootstrap.
   - Default server AI entrypoint после bootstrap: /home/agent/bin/agent-exec
+  - Env AGENT_REPO_ROOT позволяет использовать repo root вне стандартного ${HOME}/agents.
 EOF
 }
 

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="/home/agent/agents"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/runtime-paths.sh"
+
+REPO_ROOT="$(runtime_repo_root)"
 WORKFLOW_DOC="$REPO_ROOT/_runtime/RUNTIME_SYNC_WORKFLOW.md"
 STATUS_TOOL="$REPO_ROOT/_runtime/tools/status-protected-runtime.sh"
 

@@ -1,15 +1,17 @@
 # mcp
 
-This directory contains the optional generic MCP/tool integration surface that is safe to publish as part of the public AI-agent contour.
+This directory contains the optional MCP and connector surface shipped with the public runtime kit.
 
 ## Included
 
-- read-only connector candidate docs
-- generic connector code and config
-- managed defaults needed to route the topic through the same managed contour
+- generic connector code
+- connector candidate documentation
+- managed defaults needed to route this topic through the same runtime contour
 
-## Excluded
+## Not Included
 
 - private topic memory
 - run traces
-- local validation artifacts
+- local-only validation debris
+
+Treat this directory as optional integration surface, not as the required starting point for installation.

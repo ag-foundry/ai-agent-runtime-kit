@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation and reconstruction docs
+    url: https://github.com/ag-foundry/ai-agent-runtime-kit/blob/main/INSTALL.md
+    about: Read the install guide before opening a setup issue.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-META_LAUNCHER="/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py"
+AGENT_REPO_ROOT="${AGENT_REPO_ROOT:-${HOME}/agents}"
+META_LAUNCHER="$AGENT_REPO_ROOT/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py"
 
 usage() {
   cat <<'EOF'
@@ -15,6 +16,7 @@ Notes:
   - It runs the global AI meta-launcher in preflight-only mode for substantial Codex work.
   - The resulting contract/manifest/trace tell Codex whether to stay in the current chat
     or delegate to a narrower managed/current-state/research backend.
+  - Env AGENT_REPO_ROOT allows a non-default repo root when the kit is not installed at ${HOME}/agents.
 EOF
 }
 
@@ -29,5 +31,10 @@ case "${1:-}" in
     exit 0
     ;;
 esac
+
+if [[ ! -f "$META_LAUNCHER" ]]; then
+  echo "ERROR: meta-launcher backend not found: $META_LAUNCHER" >&2
+  exit 1
+fi
 
 exec python3 "$META_LAUNCHER" --frontdoor-source codex_chat --preflight-only "$@"

@@ -1,21 +1,21 @@
 # core
 
-The `core` topic is the generic source-of-truth layer for the managed AI-agent contour exported in this public distribution.
+The `core` directory contains the main orchestration and governance logic for the runtime kit.
 
-## Includes
+## It Includes
 
-- Codex frontdoor binding contract
-- AI meta-launcher backend
-- canonical managed launcher
-- policy registry
-- memory-fabric definition
-- context router / projector runtime
-- research-brain runtime
-- retrieval-execution runtime
-- bootstrap and migration logic
+- the Codex-aware chat entry path
+- the AI meta-launcher
+- the managed backend launcher
+- policy and routing definitions
+- memory and context-selection definitions
+- runtime support for routing, research, and retrieval
 
-## Start Here
+## Suggested Reading Order
 
-- `core/AGENTS.md`
-- `core/PROJECT-STEERING.md`
-- `core/artifacts/skills/openclaw-skill-creator-v1/README.md`
+1. `README.md` in the repository root
+2. `INSTALL.md`
+3. `core/PROJECT-STEERING.md`
+4. `core/artifacts/skills/openclaw-skill-creator-v1/README.md`
+
+This directory is deeper technical source, not the fastest first read for a new visitor.

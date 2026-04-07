@@ -1,40 +1,93 @@
 # Install
 
-## Intended Baseline
+## Prerequisites
 
-- Linux server with Bash and Python 3.11+
-- `git`, `python3`, and standard shell utilities
-- writable `/home/agent/agents` and `/home/agent/bin`
+- Linux server
+- Bash
+- Python 3.11 or newer
+- `git`
+- permission to write the repository checkout and the runtime bin directory
 
-## Clone And Place
+## Recommended Default Paths
 
-1. Clone this public repo to `/home/agent/agents`.
-2. Review `_runtime/canonical` and `_runtime/tools`.
-3. Sync the governed runtime into `/home/agent/bin` with `_runtime/tools/runtime-sync-flow.sh`.
+The current runtime kit works best with:
 
-## Minimal Bootstrap
+- `AGENT_REPO_ROOT=/home/agent/agents`
+- `AGENT_BIN_DIR=/home/agent/bin`
 
-1. Read `_shared/README.md`.
-2. Read `core/README.md`.
-3. Confirm the frontdoor scripts exist in `/home/agent/bin` after runtime sync:
-   - `codex-frontdoor-preflight`
-   - `agent-exec`
-4. Confirm the core managed launcher paths resolve inside `core/artifacts/skills/openclaw-skill-creator-v1/scripts/`.
+You can override those in the main runtime tools with environment variables, but the default layout is still the most fully supported path.
 
-## Minimal Validation
+## Clean-Server Install
 
-1. Run `bash -n` against the runtime shell entrypoints you plan to use.
-2. Run `python3 -m py_compile` on the main Python launcher/runtime scripts.
-3. Run `_runtime/tools/runtime-sync-flow.sh`.
-4. Run one harmless frontdoor preflight request and inspect the produced contract/trace.
+```bash
+export AGENT_REPO_ROOT="${AGENT_REPO_ROOT:-/home/agent/agents}"
+export AGENT_BIN_DIR="${AGENT_BIN_DIR:-/home/agent/bin}"
 
-## Optional Operator Tooling
+git clone https://github.com/ag-foundry/ai-agent-runtime-kit.git "$AGENT_REPO_ROOT"
+cd "$AGENT_REPO_ROOT"
+mkdir -p "$AGENT_BIN_DIR"
+bash _runtime/tools/runtime-sync-flow.sh
+```
 
-- VS Code with Codex: optional but recommended for the primary human frontdoor
-- Obsidian: optional for human-readable note workflows
-- external connectors and MCP servers: optional and capability-dependent
+## Alternative Install Paths
+
+If you do not want to use the default host layout, set your own paths first:
+
+```bash
+export AGENT_REPO_ROOT="$HOME/ai-agent-runtime-kit"
+export AGENT_BIN_DIR="$HOME/.local/bin"
+
+git clone https://github.com/ag-foundry/ai-agent-runtime-kit.git "$AGENT_REPO_ROOT"
+cd "$AGENT_REPO_ROOT"
+mkdir -p "$AGENT_BIN_DIR"
+bash _runtime/tools/runtime-sync-flow.sh
+```
+
+## First Successful Validation
+
+Run:
+
+```bash
+export AGENT_REPO_ROOT="${AGENT_REPO_ROOT:-/home/agent/agents}"
+export AGENT_BIN_DIR="${AGENT_BIN_DIR:-/home/agent/bin}"
+
+"$AGENT_BIN_DIR/codex-frontdoor-preflight" --help
+"$AGENT_BIN_DIR/agent-exec" --help
+```
+
+Expected checkpoints:
+
+- `runtime-sync-flow.sh` ends with `FLOW_RESULT=OK`
+- the manifest step reports `MANIFEST_STATUS=IN_SYNC`
+- the registry step reports `REGISTRY_STATUS=HEALTHY`
+- `codex-frontdoor-preflight --help` prints the preflight usage text
+- `agent-exec --help` prints the managed-entry usage text
+- generated runtime metadata stays local and should not be committed back to the public repo
+
+## What To Read Next
+
+1. `_shared/README.md`
+2. `core/README.md`
+3. `OPERATOR-MODES.md`
+
+## Required Vs Optional Tooling
+
+Required for the runtime kit:
+
+- Bash
+- Python
+- the repository checkout
+- the runtime sync flow
+
+Optional operator tooling:
+
+- Codex-capable environment for the primary chat frontdoor
+- VS Code
+- Obsidian
+- MCP servers and external integrations
 
 ## Honest Limits
 
-This public baseline still assumes the canonical path layout `/home/agent/agents` and `/home/agent/bin`.
-Relocating the tree requires a deliberate path-rewrite pass.
+- the kit is installable and reusable now, but not yet fully path-agnostic
+- the default layout remains the strongest supported deployment path
+- some deeper helper scripts still assume the default layout even though the main runtime tools now accept `AGENT_REPO_ROOT` and `AGENT_BIN_DIR`

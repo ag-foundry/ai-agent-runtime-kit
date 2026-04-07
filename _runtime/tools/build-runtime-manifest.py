@@ -8,10 +8,13 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-REPO_ROOT = Path("/home/agent/agents")
-LIVE_ROOT = Path("/home/agent/bin")
+from runtime_paths import live_runtime_root, repo_relative, repo_root
+
+REPO_ROOT = repo_root(__file__)
+LIVE_ROOT = live_runtime_root()
 CANONICAL_ROOT = REPO_ROOT / "_runtime" / "canonical" / "bin"
 META_ROOT = REPO_ROOT / "_runtime" / "canonical" / "meta"
+SCRIPT_PATH = Path(__file__).resolve()
 
 FILELIST = META_ROOT / "protected-working-set.txt"
 SRC_HASHES = META_ROOT / "src-from-bin.sha256"
@@ -114,7 +117,7 @@ def build_manifest(entries: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "schema_version": "runtime-manifest-v1",
         "generated_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        "generated_by": "/home/agent/agents/_runtime/tools/build-runtime-manifest.py",
+        "generated_by": repo_relative(SCRIPT_PATH, REPO_ROOT),
         "repo_root": str(REPO_ROOT),
         "live_runtime_root": str(LIVE_ROOT),
         "canonical_runtime_root": str(CANONICAL_ROOT),

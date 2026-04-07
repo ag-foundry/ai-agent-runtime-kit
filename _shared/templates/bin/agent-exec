@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-META_LAUNCHER="/home/agent/agents/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py"
-AGENTS_ROOT="${HOME}/agents"
+AGENT_REPO_ROOT="${AGENT_REPO_ROOT:-${HOME}/agents}"
+META_LAUNCHER="$AGENT_REPO_ROOT/core/artifacts/skills/openclaw-skill-creator-v1/scripts/launch_ai_meta_workflow.py"
+AGENTS_ROOT="$AGENT_REPO_ROOT"
 
 usage() {
   cat <<'EOF'
@@ -23,6 +24,7 @@ Notes:
   - По умолчанию это глобальный AI meta-launcher для managed workflows.
   - Старый positional form <topic> <prompt> сохранён только как compatibility route.
   - Env AGENT_MODE=readonly|edit управляет default write mode для fallback AI execution.
+  - Env AGENT_REPO_ROOT позволяет использовать repo root вне стандартного ${HOME}/agents.
 EOF
 }
 

@@ -11,3 +11,6 @@ tmp/
 .cache/
 .venv/
 venv/
+_runtime/runtime-registry.json
+_runtime/canonical/meta/runtime-manifest.json
+_runtime/canonical/meta/*.sha256

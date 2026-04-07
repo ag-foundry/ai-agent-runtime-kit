@@ -1,17 +1,18 @@
 # Shared Layer
 
-This public distribution keeps the shared rule layer, templates, and reusable research skills needed to operate the generic AI-agent contour.
+This directory contains the reusable shared layer that supports the public runtime kit.
 
-## Included Shared Surfaces
+## Included Here
 
-- `_shared/AGENTS.md`
-- `_shared/NEWS.md`
-- `_shared/SECURITY.md`
-- `_shared/skills/`
-- `_shared/templates/`
+- shared rules
+- shared security guidance
+- reusable research skills
+- installable runtime templates
 
-## Excluded Shared Surfaces
+## Not Included Here
 
-- private shared memory and note history
-- topic-specific private profiles
-- local-only operational scratch data
+- private shared memory
+- private note history
+- personal topic profiles
+
+Use this layer as supporting infrastructure for the runtime kit, not as the main public entry page.
